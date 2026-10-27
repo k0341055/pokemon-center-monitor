@@ -1,0 +1,69 @@
+name: Pokémon Center 補貨 Monitor
+
+on:
+  workflow_dispatch:
+    inputs:
+      check_rounds:
+        description: '執行輪數（留空使用預設值 50，約 5 分鐘）'
+        required: false
+        default: ''
+      test_mode:
+        description: '測試模式：信件標題加上【測試】（填 1 啟用）'
+        required: false
+        default: ''
+
+# 同一時間只跑一個 run（cron-job.org 觸發時若上一輪未結束則排隊），避免狀態檔互相覆蓋造成重複通知
+concurrency:
+  group: pokemon-center-monitor
+  cancel-in-progress: false
+
+jobs:
+  monitor:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Cache pip packages
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/pip
+          key: pip-pokemon-${{ runner.os }}-${{ hashFiles('requirements.txt') }}
+
+      - name: Install Python dependencies
+        run: pip install -r requirements.txt
+
+      - name: Restore notified state
+        uses: actions/cache@v4
+        with:
+          path: seen_products.json
+          key: pokemon-seen-${{ github.run_id }}
+          restore-keys: |
+            pokemon-seen-
+
+      - name: Test Pokémon Center connection
+        run: |
+          echo "=== DNS ==="
+          nslookup www.pokemoncenter-online.com || true
+          echo "=== HTTPS ==="
+          curl -s -o /dev/null --connect-timeout 5 --max-time 15 \
+            -A "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0.0.0 Safari/537.36" \
+            -w "HTTP %{http_code} | %{url_effective} | %{time_total}s\n" \
+            "https://www.pokemoncenter-online.com/4521329454221.html" || true
+
+      - name: Run Pokémon Center monitor
+        env:
+          GMAIL_SENDER:     ${{ secrets.GMAIL_SENDER }}
+          GMAIL_PASSWORD:   ${{ secrets.GMAIL_PASSWORD }}
+          GMAIL_RECIPIENTS: ${{ secrets.GMAIL_RECIPIENTS }}
+          CHECK_ROUNDS:     ${{ inputs.check_rounds || '50' }}
+          TEST_MODE:        ${{ inputs.test_mode }}
+          STATE_FILE:       'seen_products.json'
+        run: python pokemon_center_monitor.py
