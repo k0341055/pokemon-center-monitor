@@ -35,6 +35,7 @@ CHECK_ROUNDS = int(os.environ.get("CHECK_ROUNDS", "1"))
 STATE_FILE = Path(os.environ.get("STATE_FILE", "seen_products.json"))
 NOTIFY_COOLDOWN = timedelta(hours=1)
 TEST_MODE = os.environ.get("TEST_MODE", "").strip() not in ("", "0", "false")
+SEND_TEST_EMAIL = os.environ.get("SEND_TEST_EMAIL", "").strip() not in ("", "0", "false")
 
 TW_TZ = timezone(timedelta(hours=8))  # 台灣時區 UTC+8
 
@@ -346,6 +347,20 @@ def notify_queue(products: list) -> bool:
     return _send_email(GMAIL_RECIPIENTS, subject, "\n".join(lines))
 
 
+def send_test_email() -> bool:
+    """測試信：確認 Gmail 帳密與收件人設定正確（不抓取商品頁）。"""
+    subject = "【寶可夢中心 測試信】Gmail 通知設定正常"
+    lines = [
+        "這是 Pokémon Center 補貨偵測器的測試信，收到代表 Gmail 寄信設定正常。",
+        f"寄送時間：{datetime.now(TW_TZ).strftime('%Y-%m-%d %H:%M:%S')}（台灣時間）",
+        "",
+        f"監控商品（{len(WATCH_PRODUCTS)} 件）：",
+    ]
+    for p in WATCH_PRODUCTS:
+        lines.append(f"▸ {p['label']}：{_product_url(p['id'])}")
+    return _send_email(GMAIL_RECIPIENTS, subject, "\n".join(lines))
+
+
 # ─────────────────────────────────────────────
 # 核心偵測邏輯
 # ─────────────────────────────────────────────
@@ -401,6 +416,10 @@ def check_once() -> bool:
 
 
 def main():
+    if SEND_TEST_EMAIL:
+        log.info("寄送測試信（不執行偵測）")
+        raise SystemExit(0 if send_test_email() else 1)
+
     log.info(f"Pokémon Center 補貨偵測器 | 輪數：{CHECK_ROUNDS} | 監控商品：{len(WATCH_PRODUCTS)} 件")
     consecutive_failures = 0
     for round_num in range(1, CHECK_ROUNDS + 1):

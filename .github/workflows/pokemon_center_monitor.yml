@@ -11,6 +11,10 @@ on:
         description: '測試模式：信件標題加上【測試】（填 1 啟用）'
         required: false
         default: ''
+      send_test_email:
+        description: '只寄一封測試信確認 Gmail 設定，不執行偵測（填 1 啟用）'
+        required: false
+        default: ''
 
 # 同一時間只跑一個 run（cron-job.org 觸發時若上一輪未結束則排隊），避免狀態檔互相覆蓋造成重複通知
 concurrency:
@@ -65,5 +69,6 @@ jobs:
           GMAIL_RECIPIENTS: ${{ secrets.GMAIL_RECIPIENTS }}
           CHECK_ROUNDS:     ${{ inputs.check_rounds || '50' }}
           TEST_MODE:        ${{ inputs.test_mode }}
+          SEND_TEST_EMAIL:  ${{ inputs.send_test_email }}
           STATE_FILE:       'seen_products.json'
         run: python pokemon_center_monitor.py

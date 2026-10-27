@@ -98,6 +98,7 @@ Request Body：
 |---|---|---|
 | `CHECK_ROUNDS` | `1`（workflow 預設 `50`） | 每次 run 的偵測輪數 |
 | `TEST_MODE` | 空 | 非空時信件標題加上【測試】 |
+| `SEND_TEST_EMAIL` | 空 | 非空時只寄一封測試信確認 Gmail 設定，不執行偵測（Actions 手動執行時 `send_test_email` 填 `1`） |
 | `STATE_FILE` | `seen_products.json` | 通知冷卻狀態檔 |
 
 ## 本機執行
