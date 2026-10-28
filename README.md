@@ -16,6 +16,7 @@
 | 🤍 淺淺丘娃娃（Pokopia 淺色皮卡丘） | [ぬいぐるみ ぽこ あ ポケモン ピカチュウ（うすいろ）](https://www.pokemoncenter-online.com/4521329436845.html) |
 | 🤍 淺淺丘登山扣吊飾 | [カラビナ付きマスコット ぽこ あ ポケモン ピカチュウ（うすいろ）](https://www.pokemoncenter-online.com/4521329454535.html) |
 | 🟣 百變怪變身皮卡丘吊飾 | [マスコット へんしん！メタモン ピカチュウ](https://www.pokemoncenter-online.com/4521329453422.html) |
+| 😨 十ポケ十色 膽小皮卡丘吊飾 | [マスコット 十ポケ十色 おくびょうなピカチュウ](https://www.pokemoncenter-online.com/4521329397658.html) |
 
 新增／移除商品：編輯 `pokemon_center_monitor.py` 的 `WATCH_PRODUCTS`（`id` 為商品頁網址中的 13 碼數字）。
 
