@@ -13,6 +13,9 @@
 | 😴 Pokémon Sleep 晚安咚咚鼠娃娃 | [もっちりぬいぐるみ Pokémon Sleep おやすみデデンネ](https://www.pokemoncenter-online.com/4521329425672.html) |
 | 🚪 咚咚鼠等身大門擋（2.2kg） | [ずっしり2.2kg！等身大ドアストッパー でんきちょーだい！ デデンネ](https://www.pokemoncenter-online.com/4521329419589.html) |
 | 🧲 咚咚鼠・電電蟲磁鐵掛勾 | [マグネットフック でんきちょーだい！ デデンネ・バチュル](https://www.pokemoncenter-online.com/4521329434230.html) |
+| 🤍 淺淺丘娃娃（Pokopia 淺色皮卡丘） | [ぬいぐるみ ぽこ あ ポケモン ピカチュウ（うすいろ）](https://www.pokemoncenter-online.com/4521329436845.html) |
+| 🤍 淺淺丘登山扣吊飾 | [カラビナ付きマスコット ぽこ あ ポケモン ピカチュウ（うすいろ）](https://www.pokemoncenter-online.com/4521329454535.html) |
+| 🟣 百變怪變身皮卡丘吊飾 | [マスコット へんしん！メタモン ピカチュウ](https://www.pokemoncenter-online.com/4521329453422.html) |
 
 新增／移除商品：編輯 `pokemon_center_monitor.py` 的 `WATCH_PRODUCTS`（`id` 為商品頁網址中的 13 碼數字）。
 
