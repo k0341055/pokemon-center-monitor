@@ -206,6 +206,8 @@ input:disabled { opacity: .55; }
 
 .thumb { width: 84px; height: 84px; border: 1px solid var(--rule); border-radius: 12px; background: var(--photo); padding: 3px; display: block; overflow: hidden; }
 .thumb img { width: 100%; height: 100%; object-fit: contain; display: block; }
+a.thumb { color: inherit; text-decoration: none; }
+a.thumb:hover { border-color: var(--r1); }
 .ph { width: 100%; height: 100%; display: grid; place-items: center; color: #8a909b; font-size: 12px; }
 .body { display: grid; gap: 5px; min-width: 0; }
 .title-row { display: flex; gap: 6px; align-items: flex-start; }
@@ -694,10 +696,13 @@ async function poll() {
 
 /* ---------- rendering ---------- */
 
-function thumbHTML(p, cls) {
+// with href the thumbnail is a link; a drag can still start on it (the click after a drag is suppressed)
+function thumbHTML(p, cls, href) {
   const ok = p && typeof p.image === "string" && p.image.startsWith(SITE + "/");
   const inner = ok ? `<img src="${esc(p.image)}" alt="" loading="lazy" draggable="false" referrerpolicy="no-referrer">` : `<span class="ph">圖片</span>`;
-  return `<span class="${cls}">${inner}</span>`;
+  return href
+    ? `<a class="${cls}" href="${href}" target="_blank" rel="noopener" draggable="false" aria-label="開啟官網商品頁">${inner}</a>`
+    : `<span class="${cls}">${inner}</span>`;
 }
 
 function stockTag(p) {
@@ -725,7 +730,7 @@ function poolCardHTML(p, cfg, aliases, edit) {
   ).join("");
   return `<li class="card" data-drag data-pid="${esc(p.id)}" data-from="pool">
     <span class="grip" title="拖拉到通知對象"></span>
-    ${thumbHTML(p, "thumb")}
+    ${thumbHTML(p, "thumb", productUrl(p.id))}
     <div class="body">
       <div class="title-row"><h3 class="zh"><a class="plink" href="${productUrl(p.id)}" target="_blank" rel="noopener" title="開啟官網商品頁">${esc(labelOf(p))}</a></h3><button type="button" class="icon sm edit-only" data-edit aria-label="修改中文名稱">${ICON.edit}</button></div>
       ${ja}
@@ -1081,7 +1086,7 @@ function dropAction(d, to) {
 document.addEventListener("pointerdown", e => {
   if (!canEdit() || e.button !== 0 || editing) return;
   const item = e.target.closest("[data-drag]");
-  if (!item || e.target.closest("button, a, input")) return;
+  if (!item || e.target.closest("button, a:not(.thumb), input")) return;
   const onGrip = !!e.target.closest(".grip");
   if (e.pointerType !== "mouse" && !onGrip) return;  // touch drags start from the grip so the page still scrolls
   drag = { item, pid: item.dataset.pid, from: item.dataset.from, id: e.pointerId, x0: e.clientX, y0: e.clientY, x: e.clientX, y: e.clientY, started: false, zone: null, copy: false };
