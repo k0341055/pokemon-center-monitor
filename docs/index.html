@@ -1,0 +1,1148 @@
+<!doctype html>
+<html lang="zh-Hant">
+<meta charset="utf-8">
+<meta name="robots" content="noindex, nofollow">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>寶可夢補貨監控</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Semi+Condensed:wght@600;700&family=Noto+Sans+JP:wght@500;700&family=Noto+Sans+TC:wght@400;500;700;900&display=swap">
+<style>
+/* Same visual language as the 東京代購清單 page: subway-line colours, numbered rings.
+   The product pool is the orange line; each Recipient_N gets its own line colour. */
+:root {
+  --bg: #f1f2f4;
+  --surface: #ffffff;
+  --ink: #15171c;
+  --muted: #5a606d;
+  --rule: #dadde3;
+  --soft: #e8eaee;
+  --photo: #ffffff;
+  --poke: #ff9500;
+  --r1: #0079c2;
+  --r2: #e85298;
+  --r3: #1d8549;
+  --r4: #a8802f;
+  --r5: #7a5cd6;
+  --r6: #d0620b;
+  --got: #1d8549;
+  --got-soft: #e3f3ea;
+  --out: #c03636;
+  --out-soft: #fbe7e7;
+  --warn-bg: #fff2dc;
+  --warn-ink: #774600;
+  --font-zh: "Noto Sans TC", -apple-system, "PingFang TC", "Microsoft JhengHei", system-ui, sans-serif;
+  --font-ja: "Noto Sans JP", "Hiragino Sans", "Hiragino Kaku Gothic ProN", "Yu Gothic", sans-serif;
+  --font-num: "Barlow Semi Condensed", "DIN Alternate", "Arial Narrow", system-ui, sans-serif;
+  --radius: 14px;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #0f1115; --surface: #181b21; --ink: #eceef3; --muted: #9da3b0; --rule: #2a2e36; --soft: #22262d;
+    --photo: #f3f3f3; --poke: #ffa21f; --r1: #2b97e0; --r2: #f06aa8; --r3: #46c27b; --r4: #d4b886; --r5: #a08cf0; --r6: #ff9a4a;
+    --got: #46c27b; --got-soft: #16301f; --out: #f07070; --out-soft: #3a1c1c; --warn-bg: #352712; --warn-ink: #ffd08a;
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #0f1115; --surface: #181b21; --ink: #eceef3; --muted: #9da3b0; --rule: #2a2e36; --soft: #22262d;
+  --photo: #f3f3f3; --poke: #ffa21f; --r1: #2b97e0; --r2: #f06aa8; --r3: #46c27b; --r4: #d4b886; --r5: #a08cf0; --r6: #ff9a4a;
+  --got: #46c27b; --got-soft: #16301f; --out: #f07070; --out-soft: #3a1c1c; --warn-bg: #352712; --warn-ink: #ffd08a;
+  color-scheme: dark;
+}
+
+* { box-sizing: border-box; }
+[hidden] { display: none !important; }
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--ink);
+  font-family: var(--font-zh);
+  font-size: 15px;
+  line-height: 1.6;
+  -webkit-text-size-adjust: 100%;
+}
+[lang="ja"] { font-family: var(--font-ja); }
+h1, h2, h3 { margin: 0; text-wrap: balance; }
+p { margin: 0; }
+a { color: inherit; }
+button, input { font: inherit; color: inherit; }
+code { font-size: .92em; background: var(--soft); padding: 1px 6px; border-radius: 5px; overflow-wrap: anywhere; }
+:focus-visible { outline: 3px solid var(--r1); outline-offset: 2px; border-radius: 6px; }
+
+.wrap {
+  max-width: 1080px;
+  margin: 0 auto;
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
+}
+
+/* ---------- header ---------- */
+.hero { background: var(--surface); border-bottom: 1px solid var(--rule); }
+.hero .wrap { padding-block: 28px 20px; display: grid; gap: 14px; }
+.eyebrow {
+  font-family: var(--font-num); font-weight: 700; font-size: 14px; letter-spacing: .12em;
+  color: var(--muted); display: flex; gap: 8px; align-items: center; flex-wrap: wrap;
+}
+.route { display: inline-flex; gap: 4px; }
+.route i { width: 22px; height: 6px; border-radius: 3px; background: var(--c); display: block; }
+h1 { font-size: clamp(30px, 8vw, 44px); font-weight: 900; letter-spacing: .02em; line-height: 1.15; }
+.lede { color: var(--muted); max-width: 40em; }
+.summary { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; max-width: 640px; }
+.stat { background: var(--bg); border-radius: var(--radius); padding: 12px 14px; display: grid; gap: 2px; min-width: 0; }
+.stat .k { font-size: 12px; color: var(--muted); letter-spacing: .06em; }
+.stat .v { font-family: var(--font-num); font-weight: 700; font-size: 28px; line-height: 1.1; font-variant-numeric: tabular-nums; }
+.stat .s { font-size: 12px; color: var(--muted); }
+
+.conn { display: flex; flex-wrap: wrap; gap: 8px 12px; align-items: center; font-size: 14px; }
+.conn .dot { width: 10px; height: 10px; border-radius: 50%; background: var(--muted); flex: none; }
+.conn[data-state="ok"] .dot { background: var(--got); }
+.conn[data-state="busy"] .dot { background: var(--poke); animation: pulse 1s infinite alternate; }
+.conn[data-state="err"] .dot { background: var(--out); }
+.conn[data-state="err"] #connText { color: var(--out); font-weight: 500; }
+@keyframes pulse { to { opacity: .35; } }
+
+.btn {
+  border: 1.5px solid var(--rule); background: var(--surface); padding: 7px 14px; border-radius: 10px;
+  font-size: 14px; font-weight: 700; cursor: pointer; white-space: nowrap;
+}
+.btn.primary { background: var(--ink); border-color: var(--ink); color: var(--surface); }
+.btn.sm { padding: 4px 10px; font-size: 13px; }
+.btn:disabled { opacity: .45; cursor: default; }
+.linkbtn { border: 0; background: none; padding: 0; color: var(--r1); font-weight: 700; cursor: pointer; text-decoration: underline; text-underline-offset: 3px; }
+
+.connect { background: var(--bg); border-radius: var(--radius); padding: 14px 16px; display: grid; gap: 10px; max-width: 640px; }
+.connect label { font-weight: 700; font-size: 14px; }
+.row { display: flex; gap: 8px; flex-wrap: wrap; }
+.row input { flex: 1 1 220px; min-width: 0; }
+input[type="text"], input[type="password"], input:not([type]) {
+  border: 1.5px solid var(--rule); background: var(--surface); border-radius: 10px; padding: 8px 12px; font-size: 15px; min-width: 0;
+}
+.howto { margin: 0; padding-left: 20px; display: grid; gap: 4px; font-size: 13.5px; color: var(--muted); }
+.howto b { color: var(--ink); }
+
+/* ---------- add ---------- */
+.panel { background: var(--surface); border-bottom: 1px solid var(--rule); }
+.panel .wrap { padding-block: 20px; display: grid; gap: 10px; }
+.panel h2 { font-size: 20px; font-weight: 900; }
+.add { display: grid; grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr) auto auto; gap: 10px; align-items: end; }
+.field { display: grid; gap: 4px; min-width: 0; }
+.field > span { font-size: 12px; color: var(--muted); letter-spacing: .04em; }
+.field input { width: 100%; }
+.hint { font-size: 13px; color: var(--muted); }
+.readonly-note { font-size: 14px; color: var(--warn-ink); background: var(--warn-bg); padding: 8px 12px; border-radius: 10px; }
+
+/* ---------- settings ---------- */
+.settings { display: grid; grid-template-columns: repeat(auto-fill, minmax(190px, 1fr)); gap: 12px 16px; align-items: end; }
+.settings .field input { width: 100%; }
+.range { display: flex; align-items: center; gap: 6px; }
+.range input { flex: 1; width: 0; }
+input[type="number"] { border: 1.5px solid var(--rule); background: var(--surface); border-radius: 10px; padding: 8px 10px; font: 600 16px var(--font-num); font-variant-numeric: tabular-nums; }
+input:disabled { opacity: .55; }
+.switch-field { display: flex; gap: 10px; align-items: center; cursor: pointer; min-height: 42px; }
+.switch-field input { position: absolute; opacity: 0; width: 1px; height: 1px; }
+.switch { width: 44px; height: 26px; flex: none; border-radius: 999px; background: var(--rule); position: relative; transition: background .15s; }
+.switch::after { content: ""; position: absolute; top: 3px; left: 3px; width: 20px; height: 20px; border-radius: 50%; background: #fff; box-shadow: 0 1px 2px rgb(0 0 0 / .25); transition: transform .15s; }
+.switch-field input:checked + .switch { background: var(--got); }
+.switch-field input:checked + .switch::after { transform: translateX(18px); }
+.switch-field input:focus-visible + .switch { outline: 3px solid var(--r1); outline-offset: 2px; }
+.switch-field input:disabled + .switch { opacity: .5; }
+.switch-text { display: grid; line-height: 1.35; }
+.switch-text b { font-size: 14px; }
+.switch-text small { font-size: 12px; color: var(--muted); }
+.estimate { font-size: 13.5px; color: var(--muted); }
+.estimate b { color: var(--ink); font-family: var(--font-num); font-size: 15px; font-variant-numeric: tabular-nums; }
+.estimate .warn { display: block; margin-top: 4px; color: var(--warn-ink); background: var(--warn-bg); padding: 6px 10px; border-radius: 8px; width: fit-content; max-width: 100%; }
+.stat.paused .v { color: var(--out); }
+
+/* recipient toggles, used on cards and in the add form */
+.pills { display: flex; flex-wrap: wrap; gap: 6px; }
+.pill {
+  border: 1.5px solid var(--c); background: transparent; color: var(--ink); border-radius: 999px;
+  min-width: 40px; min-height: 30px; padding: 2px 10px; font-family: var(--font-num); font-weight: 700; font-size: 14px; cursor: pointer;
+}
+.pill[aria-pressed="true"] { background: var(--c); color: #fff; }
+.pill:disabled { cursor: default; }
+.pill:disabled[aria-pressed="false"] { opacity: .4; }
+
+/* ---------- board ---------- */
+.board { display: grid; grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr); gap: 16px; align-items: start; padding-block: 16px 8px; }
+.zone { background: var(--surface); border: 1px solid var(--rule); border-radius: var(--radius); transition: background .15s, box-shadow .15s; }
+.zone.over { background: color-mix(in srgb, var(--c) 9%, var(--surface)); box-shadow: inset 0 0 0 3px var(--c); }
+.zone-head { display: flex; gap: 12px; align-items: center; padding: 14px 14px 12px; border-bottom: 6px solid var(--c); }
+.zone-head > div { min-width: 0; flex: 1; }
+.zone-head h2 { font-size: 20px; font-weight: 900; line-height: 1.2; }
+.zone-head .sub { color: var(--muted); font-size: 13px; }
+.pool { --c: var(--poke); }
+
+.ring {
+  --size: 40px;
+  width: var(--size); height: var(--size); flex: none; border-radius: 50%;
+  border: calc(var(--size) * .14) solid var(--c); background: var(--surface);
+  display: grid; place-items: center; font-family: var(--font-num); font-weight: 700;
+  font-size: calc(var(--size) * .4); line-height: 1; color: var(--ink);
+}
+
+.cards { list-style: none; margin: 0; padding: 0; }
+.card {
+  display: grid; grid-template-columns: 24px 84px minmax(0, 1fr) auto; gap: 12px; align-items: start;
+  padding: 14px 12px 14px 4px; border-bottom: 1px solid var(--rule);
+}
+.card:last-child { border-bottom: 0; }
+.card.flash { animation: flash 1.6s ease-out; }
+@keyframes flash { from { background: color-mix(in srgb, var(--poke) 22%, transparent); } }
+.lifting { opacity: .35; }
+
+.grip {
+  align-self: stretch; min-height: 44px; border-radius: 6px; cursor: grab; touch-action: none;
+  display: grid; place-items: center; color: var(--muted);
+}
+.grip::before {
+  content: ""; width: 10px; height: 18px;
+  background: radial-gradient(circle, currentColor 1.5px, transparent 1.8px) 0 0 / 5px 6px;
+  opacity: .7;
+}
+.readonly .grip { visibility: hidden; }
+
+.thumb { width: 84px; height: 84px; border: 1px solid var(--rule); border-radius: 12px; background: var(--photo); padding: 3px; display: block; overflow: hidden; }
+.thumb img { width: 100%; height: 100%; object-fit: contain; display: block; }
+.ph { width: 100%; height: 100%; display: grid; place-items: center; color: #8a909b; font-size: 12px; }
+.body { display: grid; gap: 5px; min-width: 0; }
+.title-row { display: flex; gap: 6px; align-items: flex-start; }
+.zh { font-size: 16px; font-weight: 700; line-height: 1.35; min-width: 0; overflow-wrap: anywhere; }
+.edit-input { width: 100%; font-size: 15px; font-weight: 700; padding: 4px 8px; }
+.ja { font-size: 13px; line-height: 1.5; color: var(--muted); overflow-wrap: anywhere; }
+.ja.loading { color: var(--warn-ink); }
+.ja.loading::before { content: ""; display: inline-block; width: 10px; height: 10px; margin-right: 6px; border-radius: 50%; border: 2px solid currentColor; border-right-color: transparent; animation: spin .8s linear infinite; vertical-align: -1px; }
+.ja.err { color: var(--out); }
+@keyframes spin { to { transform: rotate(1turn); } }
+.meta { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+.price { font-family: var(--font-num); font-size: 17px; font-weight: 700; font-variant-numeric: tabular-nums; }
+.tag { font-size: 12px; font-weight: 700; padding: 2px 8px; border-radius: 6px; background: var(--soft); color: var(--muted); }
+.tag.out { background: var(--out-soft); color: var(--out); }
+.tag.ok { background: var(--got-soft); color: var(--got); }
+.tag.warn { background: var(--warn-bg); color: var(--warn-ink); }
+.assign { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; margin-top: 2px; }
+.assign-k { font-size: 12px; color: var(--muted); margin-right: 2px; }
+
+.side { display: grid; gap: 4px; }
+.icon {
+  width: 34px; height: 34px; border: 0; border-radius: 9px; background: transparent; color: var(--muted);
+  display: grid; place-items: center; cursor: pointer; text-decoration: none; flex: none;
+}
+.icon:hover { background: var(--soft); color: var(--ink); }
+.icon.danger:hover { background: var(--out-soft); color: var(--out); }
+.icon.sm { width: 28px; height: 28px; }
+.icon svg { width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+.readonly .edit-only { display: none !important; }
+
+.empty { padding: 18px 16px; color: var(--muted); font-size: 14px; }
+
+/* recipients: sticky beside the pool on wide screens so drops are always in reach */
+.rcpts { position: sticky; top: 12px; max-height: calc(100vh - 24px); overflow-y: auto; display: grid; gap: 12px; padding-bottom: 4px; overscroll-behavior: contain; }
+.rcpt .zone-head { padding-block: 12px 10px; }
+.rcpt .zone-head h2 { font-size: 17px; font-family: var(--font-num); letter-spacing: .02em; }
+.chips { list-style: none; margin: 0; padding: 8px; display: grid; gap: 6px; }
+.chips:empty { display: none; }
+.chip { display: flex; gap: 8px; align-items: center; background: var(--bg); border-radius: 10px; padding: 4px 4px 4px 0; min-width: 0; }
+.chip .grip { min-height: 36px; width: 22px; flex: none; }
+.chip-thumb { width: 36px; height: 36px; flex: none; border-radius: 7px; background: var(--photo); padding: 2px; border: 1px solid var(--rule); }
+.chip-thumb img { width: 100%; height: 100%; object-fit: contain; display: block; }
+.chip-body { min-width: 0; flex: 1; display: grid; line-height: 1.35; }
+.chip-name { font-size: 14px; font-weight: 500; overflow-wrap: anywhere; }
+.chip-sub { font-size: 12px; color: var(--muted); font-family: var(--font-num); font-variant-numeric: tabular-nums; }
+.rcpt .empty { padding: 14px; }
+.add-rcpt {
+  border: 2px dashed var(--rule); background: transparent; border-radius: var(--radius); padding: 12px; font-weight: 700; color: var(--muted); cursor: pointer;
+}
+.add-rcpt:hover { color: var(--ink); border-color: var(--muted); }
+.map-note { font-size: 12.5px; color: var(--muted); padding-inline: 4px; }
+
+/* ---------- drag ghost, toast, footer ---------- */
+.dragging, .dragging * { cursor: grabbing !important; user-select: none; -webkit-user-select: none; }
+.ghost {
+  position: fixed; left: 0; top: 0; z-index: 50; pointer-events: none; display: flex; gap: 10px; align-items: center;
+  max-width: 300px; padding: 8px 12px 8px 8px; background: var(--surface); border-radius: 12px;
+  border-left: 5px solid var(--c); box-shadow: 0 12px 28px rgb(0 0 0 / .22);
+}
+.ghost .chip-thumb { width: 44px; height: 44px; }
+.ghost b { display: block; font-size: 14px; line-height: 1.3; }
+.ghost small { display: block; font-size: 12px; color: var(--muted); font-weight: 700; }
+
+.toast {
+  position: fixed; left: 50%; bottom: max(20px, env(safe-area-inset-bottom, 0px)); transform: translateX(-50%); z-index: 60;
+  width: max-content; max-width: calc(100% - 32px); background: var(--ink); color: var(--surface);
+  padding: 10px 16px; border-radius: 12px; font-size: 14px; font-weight: 500; box-shadow: 0 8px 24px rgb(0 0 0 / .2);
+}
+
+.foot { padding-block: 16px 40px; display: grid; gap: 10px; }
+.foot h2 { font-size: 16px; font-weight: 900; }
+.foot ul { margin: 0; padding-left: 20px; display: grid; gap: 6px; font-size: 13.5px; color: var(--muted); max-width: 52em; }
+.foot b { color: var(--ink); }
+
+@media (max-width: 880px) {
+  .board { grid-template-columns: minmax(0, 1fr); }
+  .rcpts { position: static; max-height: none; overflow: visible; }
+  .add { grid-template-columns: minmax(0, 1fr); }
+  .add .btn { justify-self: start; }
+}
+@media (max-width: 480px) {
+  .summary { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .summary .stat:last-child { grid-column: 1 / -1; }
+  .card { grid-template-columns: 24px 64px minmax(0, 1fr); gap: 10px; }
+  .thumb { width: 64px; height: 64px; }
+  .side { grid-column: 3; display: flex; gap: 2px; margin-top: -4px; }
+}
+@media (hover: none) { .grip { min-width: 30px; } }
+@media (prefers-reduced-motion: reduce) { * { animation: none !important; transition: none !important; } }
+</style>
+
+<body class="readonly">
+
+<header class="hero">
+  <div class="wrap">
+    <p class="eyebrow">
+      <span class="route"><i style="--c: var(--poke)"></i><i style="--c: var(--r1)"></i><i style="--c: var(--r2)"></i></span>
+      POKÉMON CENTER ONLINE · 補貨監控
+    </p>
+    <h1>寶可夢補貨監控</h1>
+    <p class="lede">貼上官網商品連結就能新增監控。把商品拖到通知對象底下，補貨時只寄信給負責的帳號，限購一件的商品也能分給不同帳號去搶。</p>
+    <div class="summary">
+      <div class="stat"><span class="k">監控中</span><span class="v" id="sumWatched">–</span><span class="s" id="sumWatchedSub"></span></div>
+      <div class="stat"><span class="k">商品庫</span><span class="v" id="sumPool">–</span><span class="s" id="sumPoolSub"></span></div>
+      <div class="stat"><span class="k">通知對象</span><span class="v" id="sumRcpt">–</span><span class="s" id="sumRcptSub"></span></div>
+    </div>
+    <div class="conn" id="conn" data-state="idle">
+      <span class="dot" aria-hidden="true"></span>
+      <span id="connText" role="status">讀取中…</span>
+      <button class="btn sm" id="saveRetry" type="button" hidden>重試</button>
+      <button class="btn sm" id="saveDiscard" type="button" hidden>捨棄未儲存的變更</button>
+      <button class="linkbtn" id="connToggle" type="button" aria-expanded="false" aria-controls="tokenForm">GitHub 連線設定</button>
+    </div>
+    <form class="connect" id="tokenForm" hidden>
+      <label for="tokenInput">GitHub token（只存在這台裝置的瀏覽器）</label>
+      <div class="row">
+        <input id="tokenInput" type="password" autocomplete="off" spellcheck="false" placeholder="github_pat_…">
+        <button class="btn primary" type="submit">連線</button>
+        <button class="btn" id="tokenClear" type="button">清除</button>
+      </div>
+      <ol class="howto">
+        <li>到 <a href="https://github.com/settings/personal-access-tokens/new" target="_blank" rel="noopener">GitHub → Fine-grained personal access tokens</a> 建立新 token</li>
+        <li>Repository access 選 <b>Only select repositories</b> → <b>pokemon-center-monitor</b></li>
+        <li>Repository permissions：<b>Contents</b> 和 <b>Actions</b> 都設為 <b>Read and write</b></li>
+        <li>產生後貼到上面。token 只會送給 GitHub API，不會寫進頁面或 repo</li>
+      </ol>
+    </form>
+  </div>
+</header>
+
+<section class="panel" aria-labelledby="addTitle">
+  <div class="wrap">
+    <h2 id="addTitle">新增商品</h2>
+    <form class="add edit-only" id="addForm" autocomplete="off">
+      <label class="field"><span>官網商品連結或商品編號</span><input id="addUrl" spellcheck="false" placeholder="https://www.pokemoncenter-online.com/4521329397672.html" required></label>
+      <label class="field"><span>中文名稱（選填，之後可改）</span><input id="addLabel" placeholder="例：😟 擔心皮卡丘吊飾"></label>
+      <div class="field"><span>通知對象</span><div class="pills" id="addTo"></div></div>
+      <button class="btn primary" type="submit">新增</button>
+    </form>
+    <p class="hint edit-only">新增後 GitHub Actions 會到官網抓日文品名、價格和圖片，大約 30 秒到 1 分鐘。可以一次貼多個連結，用空白或換行分開。</p>
+    <p class="readonly-note" id="readonlyNote" hidden>目前是唯讀模式。點上面的「GitHub 連線設定」貼上 token 後，就能新增、刪除和拖拉分配商品。</p>
+  </div>
+</section>
+
+<section class="panel" aria-labelledby="setTitle">
+  <div class="wrap">
+    <h2 id="setTitle">監控設定</h2>
+    <form class="settings" id="settingsForm" autocomplete="off" onsubmit="return false">
+      <label class="switch-field"><input type="checkbox" id="setEnabled"><span class="switch" aria-hidden="true"></span><span class="switch-text"><b>監控開關</b><small id="setEnabledText"></small></span></label>
+      <label class="field"><span>每次執行輪數（1–150）</span><input type="number" id="setRounds" min="1" max="150" step="1" inputmode="numeric"></label>
+      <div class="field"><span>每輪間隔秒數（隨機，2–60）</span>
+        <div class="range"><input type="number" id="setIntMin" min="2" max="60" step="1" inputmode="numeric" aria-label="最短間隔秒數">–<input type="number" id="setIntMax" min="2" max="60" step="1" inputmode="numeric" aria-label="最長間隔秒數"></div>
+      </div>
+      <label class="field"><span>仍有庫存提醒間隔（分鐘）</span><input type="number" id="setCooldown" min="5" max="1440" step="5" inputmode="numeric"></label>
+      <label class="switch-field"><input type="checkbox" id="setQueue"><span class="switch" aria-hidden="true"></span><span class="switch-text"><b>排隊提醒</b><small>官網啟用 Queue-it 排隊時寄信</small></span></label>
+    </form>
+    <p class="estimate" id="setEstimate"></p>
+  </div>
+</section>
+
+<main class="wrap board" id="board">
+  <section class="zone pool" data-zone="pool" aria-labelledby="poolTitle">
+    <div class="zone-head">
+      <span class="ring">P</span>
+      <div><h2 id="poolTitle">商品庫</h2><p class="sub" id="poolSub">把卡片拖到通知對象，或直接點卡片上的 R1、R2</p></div>
+      <button class="btn sm edit-only" id="refreshAll" type="button">全部更新價格</button>
+    </div>
+    <ul class="cards" id="poolList"><li class="empty">讀取中…</li></ul>
+  </section>
+  <aside class="rcpts" aria-label="通知對象">
+    <div id="rcptList" style="display: grid; gap: 12px"></div>
+    <button class="add-rcpt edit-only" id="addRcpt" type="button">＋ 新增通知對象</button>
+    <p class="map-note">Recipient_N ＝ GitHub Secret <code>GMAIL_RECIPIENTS</code> 的第 N 個信箱（逗號分隔的順序）。信箱只存在 Secrets，這個頁面和 repo 都看不到。</p>
+  </aside>
+</main>
+
+<footer class="wrap foot">
+  <h2>運作方式</h2>
+  <ul>
+    <li><b>只通知負責的人：</b>補貨時只寄信給商品所在的通知對象。同一件商品可以同時分給好幾位。</li>
+    <li><b>未分配＝不監控：</b>沒有分給任何人的商品會留在商品庫，但不會去官網檢查。</li>
+    <li><b>何時生效：</b>每次修改都會直接存進 repo 的 <code>watch_config.json</code>，正在執行的監控大約 1 分鐘內套用。</li>
+    <li><b>新增通知對象：</b>新增 Recipient_3 之後，記得到 GitHub → Settings → Secrets → <code>GMAIL_RECIPIENTS</code>，把第 3 個信箱接在最後面（用逗號分隔）。</li>
+    <li><b>公開頁面：</b>任何人都能看到商品清單和代稱，但沒有 token 只能看、不能改。</li>
+  </ul>
+  <p class="hint" id="footMeta"></p>
+</footer>
+
+<div class="toast" id="toast" role="status" aria-live="polite" hidden></div>
+
+<script>
+"use strict";
+
+const OWNER = "k0341055", REPO = "pokemon-center-monitor", BRANCH = "main";
+const CONFIG_PATH = "watch_config.json", INFO_WORKFLOW = "product_info.yml";
+const SITE = "https://www.pokemoncenter-online.com";
+// Commits made from this page use the GitHub noreply address, so no personal email lands in the public history.
+const COMMITTER = { name: "k0341055", email: "17486625+k0341055@users.noreply.github.com" };
+const TOKEN_KEY = "pcm-github-token", ADD_TO_KEY = "pcm-add-to";
+const INFO_TIMEOUT = 4 * 60 * 1000;
+const ALIAS_RE = /^Recipient_([1-9]\d*)$/;
+// Mirrors DEFAULT_SETTINGS / _SETTING_RANGES / MAX_RUN_SECONDS in pokemon_center_monitor.py
+const DEFAULT_SETTINGS = { enabled: true, check_rounds: 50, interval_min: 4, interval_max: 6, cooldown_minutes: 60, queue_alert: true };
+const RANGES = { check_rounds: [1, 150], interval_min: [2, 60], interval_max: [2, 60], cooldown_minutes: [5, 1440] };
+const MAX_RUN_SECONDS = 13 * 60;
+const TRIGGER_MINUTES = 5;  // cron-job.org schedule; changed on cron-job.org, not here
+const COLORS = ["var(--r1)", "var(--r2)", "var(--r3)", "var(--r4)", "var(--r5)", "var(--r6)"];
+const ICON = {
+  open: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M14 4h6v6M20 4l-9 9M19 14v5a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V6a1 1 0 0 1 1-1h5"/></svg>',
+  refresh: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20 11a8 8 0 1 0-2.3 5.7M20 5v6h-6"/></svg>',
+  trash: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16M9 7V4h6v3M6 7l1 13h10l1-13M10 11v6M14 11v6"/></svg>',
+  edit: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 20h4L19 9l-4-4L4 16v4zM13.5 6.5l4 4"/></svg>',
+  close: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg>',
+};
+
+const store = {
+  get(k) { try { return localStorage.getItem(k); } catch (e) { return null; } },
+  set(k, v) { try { if (v == null) localStorage.removeItem(k); else localStorage.setItem(k, v); } catch (e) {} },
+};
+
+let token = store.get(TOKEN_KEY) || "";
+let tokenInvalid = false;
+let remote = null;        // { config, sha }: the version last read from or written to GitHub
+let remoteVersion = 0;    // bumped on every save so a slow poll can't overwrite a newer version
+let pending = [];         // edits not yet saved; the page always shows remote + pending
+let saving = false, saveTimer = 0, saveError = null, loadError = null, loadedAt = null;
+const fetching = new Map(); // product id → { at, prev }: waiting for the Actions run to fill in shop info
+let pollTimer = 0;
+let drag = null, editing = null, needRender = false, suppressUntil = 0, toastTimer = 0;
+let addTo;
+try { addTo = new Set(JSON.parse(store.get(ADD_TO_KEY) || '["Recipient_1"]')); } catch (e) { addTo = new Set(["Recipient_1"]); }
+
+const $ = id => document.getElementById(id);
+const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+const aliasNum = a => Number((ALIAS_RE.exec(a) || [])[1] || 0);
+const sortAliases = list => list.filter(a => ALIAS_RE.test(a)).sort((a, b) => aliasNum(a) - aliasNum(b));
+const short = a => "R" + aliasNum(a);
+const colorOf = a => COLORS[(aliasNum(a) - 1) % COLORS.length];
+const labelOf = p => (p && (p.label || p.title_ja || p.id)) || "";
+const productUrl = id => `${SITE}/${encodeURIComponent(id)}.html`;
+const canEdit = () => !!token && !tokenInvalid && !!remote;
+const pad = n => String(n).padStart(2, "0");
+const fmtTime = iso => { const d = new Date(iso); return isNaN(d) ? "" : `${d.getMonth() + 1}/${d.getDate()} ${pad(d.getHours())}:${pad(d.getMinutes())}`; };
+
+/* ---------- config model ---------- */
+
+function normalize(cfg) {
+  cfg = cfg && typeof cfg === "object" ? cfg : {};
+  if (cfg.settings != null && typeof cfg.settings !== "object") delete cfg.settings;
+  cfg.products = Array.isArray(cfg.products) ? cfg.products.filter(p => p && p.id) : [];
+  const rec = cfg.recipients && typeof cfg.recipients === "object" ? cfg.recipients : {};
+  cfg.recipients = {};
+  for (const a of sortAliases(Object.keys(rec))) cfg.recipients[a] = Array.isArray(rec[a]) ? rec[a].map(String) : [];
+  return cfg;
+}
+
+// Edits are replayed onto the newest file from GitHub before every save, so they must only refer to ids.
+function applyOp(cfg, op) {
+  const has = id => cfg.products.some(p => p.id === id);
+  const assign = (id, a) => {
+    if (!has(id) || !ALIAS_RE.test(a)) return;
+    const list = cfg.recipients[a] || (cfg.recipients[a] = []);
+    if (!list.includes(id)) list.push(id);
+  };
+  switch (op.t) {
+    case "add":
+      if (!has(op.id)) cfg.products.push({ id: op.id, label: op.label || "" });
+      (op.to || []).forEach(a => assign(op.id, a));
+      break;
+    case "delete":
+      cfg.products = cfg.products.filter(p => p.id !== op.id);
+      for (const a in cfg.recipients) cfg.recipients[a] = cfg.recipients[a].filter(id => id !== op.id);
+      break;
+    case "label": {
+      const p = cfg.products.find(x => x.id === op.id);
+      if (p) p.label = op.label;
+      break;
+    }
+    case "assign": assign(op.id, op.to); break;
+    case "unassign":
+      if (cfg.recipients[op.from]) cfg.recipients[op.from] = cfg.recipients[op.from].filter(id => id !== op.id);
+      break;
+    case "addRcpt": if (!cfg.recipients[op.alias]) cfg.recipients[op.alias] = []; break;
+    case "removeRcpt": delete cfg.recipients[op.alias]; break;
+    case "settings": cfg.settings = Object.assign(cfg.settings || {}, op.values); break;
+  }
+  return normalize(cfg);
+}
+
+const view = () => pending.reduce(applyOp, normalize(structuredClone(remote.config)));
+const serialize = cfg => JSON.stringify(normalize(structuredClone(cfg)), null, 2) + "\n";
+
+function commitMessage(ops) {
+  const d = ops.map(op => op.desc);
+  return "config: " + d.slice(0, 3).join("、") + (d.length > 3 ? ` 等 ${d.length} 項` : "");
+}
+
+/* ---------- GitHub API ---------- */
+
+function b64decode(s) {
+  return new TextDecoder().decode(Uint8Array.from(atob(s.replace(/\s/g, "")), c => c.charCodeAt(0)));
+}
+function b64encode(str) {
+  const bytes = new TextEncoder().encode(str);
+  let bin = "";
+  for (let i = 0; i < bytes.length; i += 0x8000) bin += String.fromCharCode.apply(null, bytes.subarray(i, i + 0x8000));
+  return btoa(bin);
+}
+
+async function gh(path, { method = "GET", body, auth = true } = {}) {
+  const headers = { Accept: "application/vnd.github+json" };
+  if (auth && token && !tokenInvalid) headers.Authorization = `Bearer ${token}`;
+  if (body) headers["Content-Type"] = "application/json";
+  let res;
+  try {
+    res = await fetch(`https://api.github.com${path}`, { method, headers, body: body && JSON.stringify(body), cache: "no-store" });
+  } catch (e) {
+    throw Object.assign(new Error("連不上 GitHub，請檢查網路"), { status: 0 });
+  }
+  if (res.status === 204) return null;
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw Object.assign(new Error(data.message || `HTTP ${res.status}`), { status: res.status });
+  return data;
+}
+
+async function getConfig() {
+  const path = `/repos/${OWNER}/${REPO}/contents/${CONFIG_PATH}?ref=${BRANCH}`;
+  let data;
+  try {
+    data = await gh(path);
+  } catch (e) {
+    if (e.status !== 401 || !token || tokenInvalid) throw e;
+    tokenInvalid = true;  // fall back to a read-only view
+    data = await gh(path, { auth: false });
+  }
+  return { config: normalize(JSON.parse(b64decode(data.content))), sha: data.sha };
+}
+
+async function putConfig(config, sha, message) {
+  const data = await gh(`/repos/${OWNER}/${REPO}/contents/${CONFIG_PATH}`, {
+    method: "PUT",
+    body: { message, content: b64encode(serialize(config)), sha, branch: BRANCH, committer: COMMITTER, author: COMMITTER },
+  });
+  return data.content.sha;
+}
+
+function errText(e, what) {
+  if (!e) return "";
+  if (e.status === 0) return e.message;
+  if (e.status === 401) return "token 無效或已過期，請重新設定";
+  if (e.status === 403 && /rate limit/i.test(e.message)) return "GitHub API 次數暫時用完，請稍後再試";
+  if (what === "read" && e.status === 404) return "repo 裡找不到 watch_config.json";
+  if (e.status === 403 || e.status === 404)
+    return what === "dispatch" ? "token 沒有 Actions 的 Read and write 權限，無法自動抓商品資訊" : "token 沒有這個 repo 的 Contents 寫入權限";
+  if (e.status === 409) return "設定檔一直被其他地方修改，請再試一次";
+  return e.message;
+}
+
+/* ---------- loading, saving, polling ---------- */
+
+async function load() {
+  try {
+    remote = await getConfig();
+    remoteVersion++;
+    loadError = null;
+    loadedAt = new Date();
+  } catch (e) {
+    loadError = e;
+  }
+  render();
+}
+
+function queueOp(...ops) {
+  pending.push(...ops);
+  saveError = null;
+  render();
+  clearTimeout(saveTimer);
+  saveTimer = setTimeout(flush, 700);
+}
+
+async function flush() {
+  clearTimeout(saveTimer);
+  if (saving || !pending.length || !canEdit()) return;
+  saving = true;
+  saveError = null;
+  renderStatus();
+  const batch = pending.slice();
+  try {
+    let saved = null;
+    for (let attempt = 1; !saved; attempt++) {
+      const latest = await getConfig();
+      if (tokenInvalid) throw Object.assign(new Error("token 無效"), { status: 401 });
+      const next = batch.reduce(applyOp, structuredClone(latest.config));
+      try {
+        saved = { config: next, sha: await putConfig(next, latest.sha, commitMessage(batch)) };
+      } catch (e) {
+        const conflict = e.status === 409 || (e.status === 422 && /sha/i.test(e.message));
+        if (!conflict || attempt >= 4) throw e;
+      }
+    }
+    remote = saved;
+    remoteVersion++;
+    loadedAt = new Date();
+    pending = pending.slice(batch.length);
+    const added = batch.filter(op => op.t === "add").map(op => op.id).filter(id => remote.config.products.some(p => p.id === id));
+    if (added.length) requestInfo(added);
+  } catch (e) {
+    saveError = e;
+  } finally {
+    saving = false;
+    render();
+    if (pending.length && !saveError) { clearTimeout(saveTimer); saveTimer = setTimeout(flush, 300); }
+  }
+}
+
+// The browser can't read the shop's pages (no CORS), so a GitHub Actions run fetches them and commits the result.
+async function requestInfo(ids, all = false) {
+  const cfg = view();
+  for (const id of ids) {
+    const p = cfg.products.find(x => x.id === id);
+    if (p) fetching.set(id, { at: Date.now(), prev: p.info_updated || null });
+  }
+  render();
+  try {
+    await gh(`/repos/${OWNER}/${REPO}/actions/workflows/${INFO_WORKFLOW}/dispatches`, {
+      method: "POST",
+      body: { ref: BRANCH, inputs: all ? { refresh_all: "1" } : { ids: ids.join(",") } },
+    });
+    if (!pollTimer) pollTimer = setInterval(poll, 5000);
+  } catch (e) {
+    ids.forEach(id => fetching.delete(id));
+    toast(errText(e, "dispatch"));
+    render();
+  }
+}
+
+async function poll() {
+  if (!fetching.size) { clearInterval(pollTimer); pollTimer = 0; return; }
+  if (saving || (drag && drag.started) || editing) return;
+  const v = remoteVersion;
+  try {
+    const latest = await getConfig();
+    if (saving || v !== remoteVersion) return;
+    remote = latest;
+    loadedAt = new Date();
+  } catch (e) {
+    return;
+  }
+  const cfg = view(), now = Date.now();
+  for (const [id, f] of fetching) {
+    const p = cfg.products.find(x => x.id === id);
+    if (!p) {
+      fetching.delete(id);
+    } else if (p.info_updated && p.info_updated !== f.prev) {
+      fetching.delete(id);
+      toast(p.info_error ? `${labelOf(p)}：${p.info_error}` : `已抓到 ${labelOf(p)}${p.price ? "　" + p.price : ""}`);
+    } else if (now - f.at > INFO_TIMEOUT) {
+      fetching.delete(id);
+      toast(`${labelOf(p)} 抓取逾時，可以按 ↻ 再試一次`);
+    }
+  }
+  render();
+}
+
+/* ---------- rendering ---------- */
+
+function thumbHTML(p, cls) {
+  const ok = p && typeof p.image === "string" && p.image.startsWith(SITE + "/");
+  const inner = ok ? `<img src="${esc(p.image)}" alt="" loading="lazy" draggable="false" referrerpolicy="no-referrer">` : `<span class="ph">圖片</span>`;
+  return `<span class="${cls}">${inner}</span>`;
+}
+
+function stockTag(p) {
+  if (!p.stock) return "";
+  const t = p.info_updated ? `・${fmtTime(p.info_updated)}` : "";
+  return p.stock === "in_stock" ? `<span class="tag ok">有庫存${t}</span>` : `<span class="tag out">品切れ${t}</span>`;
+}
+
+function poolCardHTML(p, cfg, aliases, edit) {
+  const mine = aliases.filter(a => cfg.recipients[a].includes(p.id));
+  let ja;
+  if (fetching.has(p.id)) ja = `<p class="ja loading">正在抓取官網資訊…</p>`;
+  else if (p.info_error) ja = `<p class="ja err">${esc(p.info_error)}</p>`;
+  else if (p.title_ja) ja = `<p class="ja" lang="ja">${esc(p.title_ja)}</p>`;
+  else ja = `<p class="ja loading">等待抓取官網資訊</p>`;
+  if (p.info_error && p.title_ja) ja = `<p class="ja" lang="ja">${esc(p.title_ja)}</p><p class="ja err">${esc(p.info_error)}</p>`;
+  const meta = [
+    p.price ? `<span class="price">${esc(p.price)}</span>` : "",
+    p.limit ? `<span class="tag" lang="ja">${esc(p.limit)}</span>` : "",
+    stockTag(p),
+    mine.length ? "" : `<span class="tag warn">未分配・不監控</span>`,
+  ].join("");
+  const pills = aliases.map(a =>
+    `<button type="button" class="pill" data-toggle="${a}" style="--c:${colorOf(a)}" aria-pressed="${mine.includes(a)}" aria-label="通知 ${a}"${edit ? "" : " disabled"}>${short(a)}</button>`
+  ).join("");
+  return `<li class="card" data-drag data-pid="${esc(p.id)}" data-from="pool">
+    <span class="grip" title="拖拉到通知對象"></span>
+    ${thumbHTML(p, "thumb")}
+    <div class="body">
+      <div class="title-row"><h3 class="zh">${esc(labelOf(p))}</h3><button type="button" class="icon sm edit-only" data-edit aria-label="修改中文名稱">${ICON.edit}</button></div>
+      ${ja}
+      ${meta ? `<p class="meta">${meta}</p>` : ""}
+      ${aliases.length ? `<div class="assign"><span class="assign-k">通知</span>${pills}</div>` : ""}
+    </div>
+    <div class="side">
+      <a class="icon" href="${productUrl(p.id)}" target="_blank" rel="noopener" aria-label="開啟官網商品頁">${ICON.open}</a>
+      <button type="button" class="icon edit-only" data-refresh aria-label="重新抓取商品資訊">${ICON.refresh}</button>
+      <button type="button" class="icon danger edit-only" data-delete aria-label="刪除商品">${ICON.trash}</button>
+    </div>
+  </li>`;
+}
+
+function rcptHTML(a, cfg, edit) {
+  const byId = new Map(cfg.products.map(p => [p.id, p]));
+  const ids = cfg.recipients[a].filter(id => byId.has(id));
+  const chips = ids.map(id => {
+    const p = byId.get(id);
+    const sub = [p.price, p.stock === "in_stock" ? "有庫存" : p.stock === "sold_out" ? "品切れ" : ""].filter(Boolean).join("・");
+    return `<li class="chip" data-drag data-pid="${esc(id)}" data-from="${a}">
+      <span class="grip" title="拖到其他對象或拖回商品庫"></span>
+      ${thumbHTML(p, "chip-thumb")}
+      <span class="chip-body"><span class="chip-name">${esc(labelOf(p))}</span>${sub ? `<span class="chip-sub">${esc(sub)}</span>` : ""}</span>
+      <button type="button" class="icon sm edit-only" data-unassign aria-label="從 ${a} 移除 ${esc(labelOf(p))}">${ICON.close}</button>
+    </li>`;
+  }).join("");
+  const n = aliasNum(a);
+  return `<section class="zone rcpt" data-zone="${a}" style="--c:${colorOf(a)}" aria-label="${a}">
+    <div class="zone-head">
+      <span class="ring">${short(a)}</span>
+      <div><h2>${a}</h2><p class="sub">GMAIL_RECIPIENTS 第 ${n} 個信箱・${ids.length} 件</p></div>
+      <button type="button" class="icon danger edit-only" data-remove-rcpt="${a}" aria-label="移除 ${a}">${ICON.trash}</button>
+    </div>
+    <ul class="chips">${chips}</ul>
+    ${ids.length ? "" : `<p class="empty">${edit ? `把商品拖到這裡，或點商品卡上的 ${short(a)}` : "還沒有商品"}</p>`}
+  </section>`;
+}
+
+function renderStatus() {
+  let state = "ok", text = "已連線，所有變更都已存進 GitHub";
+  if (!remote && loadError) [state, text] = ["err", "讀取設定失敗：" + errText(loadError, "read")];
+  else if (!remote) [state, text] = ["idle", "讀取中…"];
+  else if (!token) [state, text] = ["idle", "唯讀模式：設定 GitHub token 後才能編輯"];
+  else if (tokenInvalid) [state, text] = ["err", "token 無效或已過期，請重新設定"];
+  else if (saving) [state, text] = ["busy", "儲存中…"];
+  else if (saveError) [state, text] = ["err", "儲存失敗：" + errText(saveError, "save")];
+  else if (pending.length) [state, text] = ["busy", `${pending.length} 項變更待儲存…`];
+  $("conn").dataset.state = state;
+  $("connText").textContent = text;
+  $("saveRetry").hidden = !saveError && !(loadError && !remote);
+  $("saveDiscard").hidden = !saveError;
+}
+
+function render() {
+  if ((drag && drag.started) || editing) { needRender = true; return; }
+  needRender = false;
+  renderStatus();
+  const edit = canEdit();
+  document.body.classList.toggle("readonly", !edit);
+  $("readonlyNote").hidden = edit || !remote;
+  if (!remote) {
+    $("poolList").innerHTML = `<li class="empty">${loadError ? "讀取設定失敗，按上面的「重試」" : "讀取中…"}</li>`;
+    return;
+  }
+
+  const cfg = view();
+  const aliases = Object.keys(cfg.recipients);
+  const watched = new Set(aliases.flatMap(a => cfg.recipients[a]));
+  const unassigned = cfg.products.filter(p => !watched.has(p.id)).length;
+  const st = settingsOf(cfg);
+  $("sumWatched").textContent = st.enabled ? cfg.products.filter(p => watched.has(p.id)).length : "暫停";
+  $("sumWatchedSub").textContent = st.enabled ? "分配給至少一位" : "在下面的監控設定重新開啟";
+  $("sumWatched").closest(".stat").classList.toggle("paused", !st.enabled);
+  renderSettings(st, edit);
+  $("sumPool").textContent = cfg.products.length;
+  $("sumPoolSub").textContent = unassigned ? `${unassigned} 件未分配` : "全部都有分配";
+  $("sumRcpt").textContent = aliases.length;
+  $("sumRcptSub").textContent = aliases.map(a => `${short(a)} ${cfg.recipients[a].length} 件`).join("・") || "還沒有通知對象";
+
+  $("poolList").innerHTML = cfg.products.length
+    ? cfg.products.map(p => poolCardHTML(p, cfg, aliases, edit)).join("")
+    : `<li class="empty">商品庫是空的，從上面貼官網連結新增第一件商品。</li>`;
+  $("rcptList").innerHTML = aliases.map(a => rcptHTML(a, cfg, edit)).join("")
+    || `<p class="empty zone">還沒有通知對象，按下面的「＋ 新增通知對象」。</p>`;
+
+  addTo = new Set([...addTo].filter(a => cfg.recipients[a]));
+  $("addTo").innerHTML = aliases.map(a =>
+    `<button type="button" class="pill" data-addto="${a}" style="--c:${colorOf(a)}" aria-pressed="${addTo.has(a)}" aria-label="新增時通知 ${a}">${short(a)}</button>`
+  ).join("") || `<span class="hint">先新增通知對象</span>`;
+  $("addRcpt").textContent = `＋ 新增通知對象（${nextAlias(cfg)}）`;
+  $("refreshAll").disabled = !cfg.products.length;
+  $("footMeta").innerHTML = `設定檔：<a href="https://github.com/${OWNER}/${REPO}/blob/${BRANCH}/${CONFIG_PATH}" target="_blank" rel="noopener">${CONFIG_PATH}</a>`
+    + (loadedAt ? `・最後同步 ${pad(loadedAt.getHours())}:${pad(loadedAt.getMinutes())}:${pad(loadedAt.getSeconds())}` : "");
+}
+
+function settingsOf(cfg) {
+  const s = Object.assign({}, DEFAULT_SETTINGS, cfg.settings || {});
+  for (const [k, [lo, hi]] of Object.entries(RANGES)) s[k] = Math.min(Math.max(Math.round(Number(s[k]) || DEFAULT_SETTINGS[k]), lo), hi);
+  s.interval_max = Math.max(s.interval_max, s.interval_min);
+  s.enabled = s.enabled !== false;
+  s.queue_alert = s.queue_alert !== false;
+  return s;
+}
+const roundsLimit = s => Math.max(1, Math.floor(MAX_RUN_SECONDS / (s.interval_max + 2)));
+const fmtDur = sec => sec >= 60 ? `${Math.floor(sec / 60)} 分${sec % 60 ? ` ${Math.round(sec % 60)} 秒` : ""}` : `${Math.round(sec)} 秒`;
+
+const SET_INPUTS = { check_rounds: "setRounds", interval_min: "setIntMin", interval_max: "setIntMax", cooldown_minutes: "setCooldown" };
+
+function renderSettings(s, edit) {
+  for (const [k, id] of Object.entries(SET_INPUTS)) {
+    const el = $(id);
+    if (document.activeElement !== el) el.value = s[k];
+    el.disabled = !edit;
+  }
+  $("setEnabled").checked = s.enabled;
+  $("setQueue").checked = s.queue_alert;
+  $("setEnabled").disabled = $("setQueue").disabled = !edit;
+  $("setEnabledText").textContent = s.enabled ? "監控中" : "已暫停：排程照常啟動，但不會檢查官網";
+
+  const perRound = (s.interval_min + s.interval_max) / 2 + 1;  // about 1 s to fetch every page
+  const run = s.check_rounds * perRound;
+  const gap = TRIGGER_MINUTES * 60 - run - 30;                 // ~30 s for the runner to start
+  let html = `每次執行約 <b>${fmtDur(run)}</b>，平均每 <b>${perRound.toFixed(1)}</b> 秒檢查一次。cron-job.org 每 ${TRIGGER_MINUTES} 分鐘啟動一次執行（觸發頻率要到 cron-job.org 修改）。`;
+  if (gap > 30) html += `<span class="warn">每 ${TRIGGER_MINUTES} 分鐘約有 ${fmtDur(gap)} 沒在監控，可以增加輪數或拉長間隔。</span>`;
+  $("setEstimate").innerHTML = html;
+}
+
+function onSettingsChange(e) {
+  if (!canEdit()) return;
+  const cur = settingsOf(view());
+  const next = Object.assign({}, cur, { enabled: $("setEnabled").checked, queue_alert: $("setQueue").checked });
+  for (const [k, id] of Object.entries(SET_INPUTS)) {
+    const v = Math.round(Number($(id).value));
+    next[k] = Number.isFinite(v) && $(id).value !== "" ? Math.min(Math.max(v, RANGES[k][0]), RANGES[k][1]) : cur[k];
+  }
+  if (next.interval_min > next.interval_max) {
+    if (e.target.id === "setIntMin") next.interval_max = next.interval_min; else next.interval_min = next.interval_max;
+  }
+  const limit = roundsLimit(next);
+  if (next.check_rounds > limit) {
+    next.check_rounds = limit;
+    toast(`間隔 ${next.interval_max} 秒時，每次執行最多 ${limit} 輪（GitHub Actions 時間上限），已自動調整`);
+  }
+  const names = { enabled: "監控", check_rounds: "輪數", interval_min: "最短間隔", interval_max: "最長間隔", cooldown_minutes: "提醒間隔", queue_alert: "排隊提醒" };
+  const show = (k, v) => typeof v === "boolean" ? (v ? "開" : "關") : v;
+  for (const [k, id] of Object.entries(SET_INPUTS)) $(id).value = next[k];
+  const changed = Object.keys(names).filter(k => next[k] !== cur[k]);
+  if (!changed.length) { render(); return; }
+  const values = Object.fromEntries(changed.map(k => [k, next[k]]));
+  queueOp({ t: "settings", values, desc: "設定 " + changed.map(k => `${names[k]} ${show(k, cur[k])}→${show(k, next[k])}`).join("、") });
+}
+$("settingsForm").addEventListener("change", onSettingsChange);
+
+function nextAlias(cfg) {
+  let n = 1;
+  while (cfg.recipients[`Recipient_${n}`]) n++;
+  return `Recipient_${n}`;
+}
+
+function toast(msg) {
+  const el = $("toast");
+  el.textContent = msg;
+  el.hidden = false;
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => { el.hidden = true; }, 3800);
+}
+
+function flashCard(id) {
+  const el = document.querySelector(`.card[data-pid="${CSS.escape(id)}"]`);
+  if (!el) return;
+  el.classList.remove("flash");
+  void el.offsetWidth;
+  el.classList.add("flash");
+  el.scrollIntoView({ block: "nearest", behavior: "smooth" });
+}
+
+/* ---------- edits ---------- */
+
+const findProduct = id => view().products.find(p => p.id === id);
+const opAssign = (id, a) => ({ t: "assign", id, to: a, desc: `${a} ＋ ${labelOf(findProduct(id))}` });
+const opUnassign = (id, a) => ({ t: "unassign", id, from: a, desc: `${a} － ${labelOf(findProduct(id))}` });
+
+function parseIds(text) {
+  const ids = [];
+  for (const tok of text.split(/[\s,，、]+/)) {
+    const m = tok.match(/\/(\d{6,16})\.html/) || tok.match(/^(\d{6,16})$/);
+    if (m && !ids.includes(m[1])) ids.push(m[1]);
+  }
+  return ids;
+}
+
+function startEdit(card) {
+  const id = card.dataset.pid, p = findProduct(id);
+  if (!p) return;
+  editing = id;
+  const input = document.createElement("input");
+  input.className = "edit-input";
+  input.value = p.label || "";
+  input.placeholder = p.title_ja || "中文名稱";
+  input.setAttribute("aria-label", "中文名稱");
+  card.querySelector(".zh").replaceWith(input);
+  card.querySelector("[data-edit]").hidden = true;
+  input.focus();
+  input.select();
+  let done = false;
+  const finish = keep => {
+    if (done) return;
+    done = true;
+    editing = null;
+    const v = input.value.trim();
+    if (keep && v !== (p.label || "")) queueOp({ t: "label", id, label: v, desc: `改名 ${v || id}` });
+    else render();
+  };
+  input.addEventListener("keydown", e => {
+    if (e.key === "Enter") { e.preventDefault(); finish(true); }
+    else if (e.key === "Escape") finish(false);
+  });
+  input.addEventListener("blur", () => finish(true));
+}
+
+$("addForm").addEventListener("submit", e => {
+  e.preventDefault();
+  if (!canEdit()) return;
+  const ids = parseIds($("addUrl").value);
+  if (!ids.length) { toast("看不懂這個連結，請貼官網商品頁網址或商品編號"); return; }
+  const cfg = view();
+  const fresh = ids.filter(id => !cfg.products.some(p => p.id === id));
+  if (!fresh.length) { toast("這件商品已經在商品庫了"); flashCard(ids[0]); return; }
+  const label = fresh.length === 1 ? $("addLabel").value.trim() : "";
+  const to = Object.keys(cfg.recipients).filter(a => addTo.has(a));
+  queueOp(...fresh.map(id => ({ t: "add", id, label, to, desc: `新增 ${label || id}` })));
+  fresh.forEach(id => fetching.set(id, { at: Date.now(), prev: null }));
+  render();
+  $("addUrl").value = "";
+  $("addLabel").value = "";
+  const skipped = ids.length - fresh.length;
+  toast(`已新增 ${fresh.length} 件${skipped ? `（${skipped} 件已在商品庫）` : ""}，正在抓取官網資訊…`);
+  flashCard(fresh[fresh.length - 1]);
+});
+
+document.addEventListener("click", e => {
+  if (Date.now() < suppressUntil) { e.preventDefault(); e.stopPropagation(); }
+}, true);
+
+document.addEventListener("click", e => {
+  const btn = e.target.closest("button");
+  if (!btn) return;
+  if (btn.dataset.addto) {
+    const a = btn.dataset.addto;
+    addTo.has(a) ? addTo.delete(a) : addTo.add(a);
+    store.set(ADD_TO_KEY, JSON.stringify([...addTo]));
+    render();
+    return;
+  }
+  if (!canEdit()) return;
+  const card = btn.closest("[data-pid]");
+  const id = card && card.dataset.pid;
+  const cfg = view();
+  if (btn.dataset.toggle) {
+    const a = btn.dataset.toggle;
+    queueOp(cfg.recipients[a].includes(id) ? opUnassign(id, a) : opAssign(id, a));
+  } else if ("edit" in btn.dataset) {
+    startEdit(card);
+  } else if ("refresh" in btn.dataset) {
+    if (pending.some(op => op.t === "add" && op.id === id)) { toast("儲存後會自動抓取"); return; }
+    requestInfo([id]);
+  } else if ("delete" in btn.dataset) {
+    const p = findProduct(id);
+    if (confirm(`刪除「${labelOf(p)}」？\n會同時從所有通知對象移除，之後不再監控。`)) {
+      fetching.delete(id);
+      queueOp({ t: "delete", id, desc: `刪除 ${labelOf(p)}` });
+    }
+  } else if ("unassign" in btn.dataset) {
+    queueOp(opUnassign(id, card.dataset.from));
+  } else if (btn.dataset.removeRcpt) {
+    const a = btn.dataset.removeRcpt, n = cfg.recipients[a].length;
+    if (!n || confirm(`移除 ${a}？\n它的 ${n} 件商品之後不會再寄信給 GMAIL_RECIPIENTS 第 ${aliasNum(a)} 個信箱。`))
+      queueOp({ t: "removeRcpt", alias: a, desc: `移除 ${a}` });
+  } else if (btn.id === "addRcpt") {
+    const a = nextAlias(cfg);
+    queueOp({ t: "addRcpt", alias: a, desc: `新增 ${a}` });
+    if (aliasNum(a) > 2) toast(`已新增 ${a}，記得把第 ${aliasNum(a)} 個信箱加到 GMAIL_RECIPIENTS 最後面`);
+  } else if (btn.id === "refreshAll") {
+    requestInfo(cfg.products.map(p => p.id), true);
+    toast("已請 GitHub Actions 重新抓取全部商品，約 1 分鐘");
+  }
+});
+
+$("saveRetry").addEventListener("click", () => { if (!remote) load(); else flush(); });
+$("saveDiscard").addEventListener("click", () => {
+  if (!confirm(`捨棄 ${pending.length} 項還沒存進 GitHub 的變更？`)) return;
+  pending = [];
+  saveError = null;
+  load();
+});
+
+$("connToggle").addEventListener("click", () => {
+  const form = $("tokenForm"), open = form.hidden;
+  form.hidden = !open;
+  $("connToggle").setAttribute("aria-expanded", String(open));
+  if (open) $("tokenInput").focus();
+});
+$("tokenForm").addEventListener("submit", async e => {
+  e.preventDefault();
+  const t = $("tokenInput").value.trim();
+  if (!t) return;
+  token = t;
+  tokenInvalid = false;
+  store.set(TOKEN_KEY, t);
+  $("tokenInput").value = "";
+  await load();
+  if (tokenInvalid) { toast("token 無效，請確認有沒有貼完整"); return; }
+  $("tokenForm").hidden = true;
+  $("connToggle").setAttribute("aria-expanded", "false");
+  toast("已連線，可以開始編輯");
+  if (pending.length) flush();
+});
+$("tokenClear").addEventListener("click", () => {
+  token = "";
+  tokenInvalid = false;
+  store.set(TOKEN_KEY, null);
+  $("tokenInput").value = "";
+  toast("已清除這台裝置上的 token");
+  render();
+});
+
+/* ---------- drag and drop (pointer events, so it also works with a finger on the grip) ---------- */
+
+function dropAction(d, to) {
+  if (!to || to === d.from) return null;
+  const cfg = view();
+  const inTo = to !== "pool" && (cfg.recipients[to] || []).includes(d.pid);
+  if (d.from === "pool") {
+    if (to === "pool") return null;
+    return inTo ? { ok: false, hint: `已在 ${to}` } : { ok: true, hint: `加入 ${to}`, ops: [opAssign(d.pid, to)] };
+  }
+  if (to === "pool") return { ok: true, hint: `從 ${d.from} 移除`, ops: [opUnassign(d.pid, d.from)] };
+  if (d.copy) return inTo ? { ok: false, hint: `已在 ${to}` } : { ok: true, hint: `複製到 ${to}`, ops: [opAssign(d.pid, to)] };
+  return inTo
+    ? { ok: true, hint: `從 ${d.from} 移除（${to} 已經有）`, ops: [opUnassign(d.pid, d.from)] }
+    : { ok: true, hint: `從 ${d.from} 移到 ${to}`, ops: [opUnassign(d.pid, d.from), opAssign(d.pid, to)] };
+}
+
+document.addEventListener("pointerdown", e => {
+  if (!canEdit() || e.button !== 0 || editing) return;
+  const item = e.target.closest("[data-drag]");
+  if (!item || e.target.closest("button, a, input")) return;
+  const onGrip = !!e.target.closest(".grip");
+  if (e.pointerType !== "mouse" && !onGrip) return;  // touch drags start from the grip so the page still scrolls
+  drag = { item, pid: item.dataset.pid, from: item.dataset.from, id: e.pointerId, x0: e.clientX, y0: e.clientY, x: e.clientX, y: e.clientY, started: false, zone: null, copy: false };
+});
+
+document.addEventListener("pointermove", e => {
+  if (!drag || e.pointerId !== drag.id) return;
+  drag.x = e.clientX;
+  drag.y = e.clientY;
+  drag.copy = e.altKey;
+  if (!drag.started) {
+    if (Math.hypot(drag.x - drag.x0, drag.y - drag.y0) < 6) return;
+    beginDrag();
+  }
+  e.preventDefault();
+  moveDrag();
+}, { passive: false });
+
+document.addEventListener("dragstart", e => {
+  const el = e.target.nodeType === 1 ? e.target : e.target.parentElement;
+  if (el && el.closest("[data-drag]")) e.preventDefault();
+});
+document.addEventListener("pointerup", e => { if (drag && e.pointerId === drag.id) endDrag(true); });
+document.addEventListener("pointercancel", e => { if (drag && e.pointerId === drag.id) endDrag(false); });
+document.addEventListener("keydown", e => { if (e.key === "Escape" && drag && drag.started) endDrag(false); });
+
+function beginDrag() {
+  drag.started = true;
+  const p = findProduct(drag.pid);
+  const g = document.createElement("div");
+  g.className = "ghost";
+  g.style.setProperty("--c", drag.from === "pool" ? "var(--poke)" : colorOf(drag.from));
+  g.innerHTML = `${thumbHTML(p, "chip-thumb")}<span><b>${esc(labelOf(p))}</b><small></small></span>`;
+  document.body.append(g);
+  drag.ghost = g;
+  drag.item.classList.add("lifting");
+  document.body.classList.add("dragging");
+  const sel = getSelection();
+  if (sel) sel.removeAllRanges();
+  scrollLoop();
+}
+
+function moveDrag() {
+  const d = drag;
+  d.ghost.style.transform = `translate(${d.x + 14}px, ${d.y + 14}px) rotate(-2deg)`;
+  const under = document.elementFromPoint(d.x, d.y);
+  const zone = under && under.closest(".zone[data-zone]");
+  const action = zone ? dropAction(d, zone.dataset.zone) : null;
+  document.querySelectorAll(".zone.over").forEach(z => { if (z !== zone) z.classList.remove("over"); });
+  if (zone) zone.classList.toggle("over", !!(action && action.ok));
+  d.zone = zone ? zone.dataset.zone : null;
+  d.ghost.querySelector("small").textContent = action ? action.hint
+    : d.from === "pool" ? "拖到通知對象底下" : "拖回商品庫＝移除";
+}
+
+// Scroll the page (or the sticky recipients column) while a drag hovers near an edge.
+function scrollLoop() {
+  if (!drag || !drag.started) return;
+  const edge = 70, d = drag;
+  const speed = (pos, lo, hi) => pos < lo + edge ? -(lo + edge - pos) / 3 : pos > hi - edge ? (pos - (hi - edge)) / 3 : 0;
+  const aside = document.querySelector(".rcpts");
+  const r = aside.getBoundingClientRect();
+  const inAside = aside.scrollHeight > aside.clientHeight && d.x >= r.left && d.x <= r.right && d.y >= r.top && d.y <= r.bottom;
+  const dy = inAside ? speed(d.y, r.top, r.bottom) : speed(d.y, 0, innerHeight);
+  if (dy) {
+    if (inAside) aside.scrollTop += dy; else scrollBy(0, dy);
+    moveDrag();
+  }
+  d.raf = requestAnimationFrame(scrollLoop);
+}
+
+function endDrag(commit) {
+  const d = drag;
+  drag = null;
+  if (!d.started) return;
+  cancelAnimationFrame(d.raf);
+  d.ghost.remove();
+  d.item.classList.remove("lifting");
+  document.body.classList.remove("dragging");
+  document.querySelectorAll(".zone.over").forEach(z => z.classList.remove("over"));
+  suppressUntil = Date.now() + 350;
+  const action = commit && dropAction(d, d.zone);
+  if (action && action.ok) { queueOp(...action.ops); toast(action.hint); }
+  else if (needRender) render();
+}
+
+/* ---------- start ---------- */
+
+window.addEventListener("beforeunload", e => { if (pending.length || saving) { e.preventDefault(); e.returnValue = ""; } });
+document.addEventListener("visibilitychange", () => {
+  if (document.visibilityState === "visible" && remote && !pending.length && !saving && !fetching.size) load();
+});
+load();
+</script>

@@ -4,7 +4,7 @@ on:
   workflow_dispatch:
     inputs:
       check_rounds:
-        description: '執行輪數（留空使用預設值 50，約 5 分鐘）'
+        description: '執行輪數（留空＝使用 UI 監控設定的輪數）'
         required: false
         default: ''
       test_mode:
@@ -20,6 +20,10 @@ on:
 concurrency:
   group: pokemon-center-monitor
   cancel-in-progress: false
+
+# contents: read 供執行中每隔數輪重新讀取 watch_config.json（UI 修改約 1 分鐘內生效）
+permissions:
+  contents: read
 
 jobs:
   monitor:
@@ -67,8 +71,9 @@ jobs:
           GMAIL_SENDER:     ${{ secrets.GMAIL_SENDER }}
           GMAIL_PASSWORD:   ${{ secrets.GMAIL_PASSWORD }}
           GMAIL_RECIPIENTS: ${{ secrets.GMAIL_RECIPIENTS }}
-          CHECK_ROUNDS:     ${{ inputs.check_rounds || '50' }}
+          CHECK_ROUNDS:     ${{ inputs.check_rounds }}
           TEST_MODE:        ${{ inputs.test_mode }}
           SEND_TEST_EMAIL:  ${{ inputs.send_test_email }}
           STATE_FILE:       'seen_products.json'
+          GITHUB_TOKEN:     ${{ github.token }}
         run: python pokemon_center_monitor.py

@@ -1,0 +1,69 @@
+name: 更新商品資訊
+
+# UI 網頁新增商品後觸發：抓取商品頁的日文品名、價格、限購、圖片，寫回 watch_config.json
+# （瀏覽器受 CORS 限制無法直接抓官網，改由 Actions 代抓）
+on:
+  workflow_dispatch:
+    inputs:
+      ids:
+        description: '要重新抓取的商品編號或網址（逗號分隔；留空＝只補齊缺資料的商品）'
+        required: false
+        default: ''
+      refresh_all:
+        description: '重新抓取全部商品的價格與庫存（填 1 啟用）'
+        required: false
+        default: ''
+
+permissions:
+  contents: write
+
+jobs:
+  update:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Cache pip packages
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/pip
+          key: pip-pokemon-${{ runner.os }}-${{ hashFiles('requirements.txt') }}
+
+      - name: Install Python dependencies
+        run: pip install -r requirements.txt
+
+      - name: Fetch product info and commit
+        env:
+          IDS: ${{ inputs.ids }}
+          REFRESH_ALL: ${{ inputs.refresh_all }}
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898183+github-actions[bot]@users.noreply.github.com"
+          args=()
+          if [ -n "$REFRESH_ALL" ] && [ "$REFRESH_ALL" != "0" ]; then args+=(--all); fi
+
+          # UI 可能同時在修改設定檔：每次都從最新的 main 重新套用，push 被拒就重試
+          for attempt in 1 2 3 4 5; do
+            git fetch -q origin main
+            git reset -q --hard origin/main
+            python product_info.py "${args[@]}" "$IDS"
+            if git diff --quiet -- watch_config.json; then
+              echo "設定檔沒有變更"
+              exit 0
+            fi
+            git commit -q -m "chore: 更新商品資訊" -- watch_config.json
+            if git push -q origin HEAD:main; then
+              exit 0
+            fi
+            echo "push 被拒（設定檔剛被修改），重試 $attempt/5"
+            sleep $((attempt * 2))
+          done
+          exit 1

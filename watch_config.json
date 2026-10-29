@@ -1,0 +1,162 @@
+{
+  "settings": {
+    "enabled": true,
+    "check_rounds": 50,
+    "interval_min": 4,
+    "interval_max": 6,
+    "cooldown_minutes": 60,
+    "queue_alert": true
+  },
+  "products": [
+    {
+      "id": "4521329454221",
+      "label": "🎄 聖誕樹皮卡丘娃娃",
+      "info_updated": "2026-10-29T13:41:31+08:00",
+      "title_ja": "もちふわぬいぐるみ クリスマスじゅんびチュウ！ ツリーごっこピカチュウ",
+      "price": "¥4,400",
+      "limit": "お一人様 1点限り",
+      "image": "https://www.pokemoncenter-online.com/a/img/item/4521329454221/M/5eda78e25508d0eb4574fe1eaf5cb101d8b530c8b669645eb0c18ed67704f1b1.jpg",
+      "stock": "sold_out"
+    },
+    {
+      "id": "4521329454238",
+      "label": "🍪 偷吃餅乾皮卡丘吊飾",
+      "info_updated": "2026-10-29T13:41:31+08:00",
+      "title_ja": "マスコット クリスマスじゅんびチュウ！ ピカチュウ つまみぐい",
+      "price": "¥2,200",
+      "limit": "お一人様 1点限り",
+      "image": "https://www.pokemoncenter-online.com/a/img/item/4521329454238/M/401ef4f2809558e6e9da2fc81099f1adfbe6abf302891c8672bcd0bf26750e7f.jpg",
+      "stock": "sold_out"
+    },
+    {
+      "id": "4521329454252",
+      "label": "🧸 皮卡丘與多邊獸Ⅱ玩具吊飾",
+      "info_updated": "2026-10-29T13:41:31+08:00",
+      "title_ja": "マスコット クリスマスじゅんびチュウ！ ピカチュウとポリゴン2のおもちゃ",
+      "price": "¥2,200",
+      "limit": "お一人様 1点限り",
+      "image": "https://www.pokemoncenter-online.com/a/img/item/4521329454252/M/81c80762e6e3ed879846ccb6e1d4c5a4f45a9f665979961171795af82dcfe3e7.jpg",
+      "stock": "sold_out"
+    },
+    {
+      "id": "4521329454306",
+      "label": "🎁 聖誕準備啾！蓬鬆玩偶 BOX",
+      "info_updated": "2026-10-29T13:41:31+08:00",
+      "title_ja": "ふわふわドール クリスマスじゅんびチュウ！BOX",
+      "price": "¥4,400",
+      "limit": "お一人様 1点限り",
+      "image": "https://www.pokemoncenter-online.com/a/img/item/4521329454306/M/15332e776ce7f2dacc12e8817065922090f435a6cce0a7e31f437732c7571116.jpg",
+      "stock": "sold_out"
+    },
+    {
+      "id": "4521329425672",
+      "label": "😴 Pokémon Sleep 晚安咚咚鼠娃娃",
+      "info_updated": "2026-10-29T13:41:31+08:00",
+      "title_ja": "もっちりぬいぐるみ Pokémon Sleep おやすみデデンネ",
+      "price": "¥3,740",
+      "limit": "お一人様 10点限り",
+      "image": "https://www.pokemoncenter-online.com/a/img/item/4521329425672/M/826f8cfa83750c71c19e02b2309587589f864bb182e1ddaf553b55886bcf7525.jpg",
+      "stock": "sold_out"
+    },
+    {
+      "id": "4521329419589",
+      "label": "🚪 咚咚鼠等身大門擋（2.2kg）",
+      "info_updated": "2026-10-29T13:41:31+08:00",
+      "title_ja": "ずっしり2.2kg！等身大ドアストッパー でんきちょーだい！ デデンネ",
+      "price": "¥5,940",
+      "limit": "お一人様 1点限り",
+      "image": "https://www.pokemoncenter-online.com/a/img/item/4521329419589/M/bce83a4bd1c5c1f3973164ae3017adb6baf519b025c99c639574e303882750e8.jpg",
+      "stock": "sold_out"
+    },
+    {
+      "id": "4521329434230",
+      "label": "🧲 咚咚鼠・電電蟲磁鐵掛勾",
+      "info_updated": "2026-10-29T13:41:31+08:00",
+      "title_ja": "マグネットフック でんきちょーだい！ デデンネ・バチュル",
+      "price": "¥2,750",
+      "limit": "お一人様 1点限り",
+      "image": "https://www.pokemoncenter-online.com/a/img/item/4521329434230/M/a47350969b2f57c36ce77415dc0172d214674ecf184c50f5d411dbd073df1aad.jpg",
+      "stock": "sold_out"
+    },
+    {
+      "id": "4521329436845",
+      "label": "🤍 淺淺丘娃娃（Pokopia 淺色皮卡丘）",
+      "info_updated": "2026-10-29T13:41:31+08:00",
+      "title_ja": "ぬいぐるみ ぽこ あ ポケモン ピカチュウ（うすいろ）",
+      "price": "¥2,750",
+      "limit": "お一人様 1点限り",
+      "image": "https://www.pokemoncenter-online.com/a/img/item/4521329436845/M/7268c9dc1ce99b05cca5ab9e3041478ea0dcbf1b1dcfbc9dd8fb40b2a84ca506.jpg",
+      "stock": "sold_out"
+    },
+    {
+      "id": "4521329454535",
+      "label": "🤍 淺淺丘登山扣吊飾",
+      "info_updated": "2026-10-29T13:41:31+08:00",
+      "title_ja": "カラビナ付きマスコット ぽこ あ ポケモン ピカチュウ（うすいろ）",
+      "price": "¥1,540",
+      "limit": "お一人様 1点限り",
+      "image": "https://www.pokemoncenter-online.com/a/img/item/4521329454535/M/2d94f9fc44e76bc5c72fd67e1e8cefa601787993a4a391d7fb0f327186723a97.jpg",
+      "stock": "sold_out"
+    },
+    {
+      "id": "4521329453422",
+      "label": "🟣 百變怪變身皮卡丘吊飾",
+      "info_updated": "2026-10-29T13:41:31+08:00",
+      "title_ja": "マスコット へんしん！メタモン ピカチュウ",
+      "price": "¥1,870",
+      "limit": "お一人様 1点限り",
+      "image": "https://www.pokemoncenter-online.com/a/img/item/4521329453422/M/80fd0f7684ec20959f59bc72fef36d373ae2510d417809fc9f5e08d93cf82df5.jpg",
+      "stock": "sold_out"
+    },
+    {
+      "id": "4521329397658",
+      "label": "😨 十ポケ十色 膽小皮卡丘吊飾",
+      "info_updated": "2026-10-29T13:41:31+08:00",
+      "title_ja": "マスコット 十ポケ十色 おくびょうなピカチュウ",
+      "price": "¥1,650",
+      "limit": "お一人様 1点限り",
+      "image": "https://www.pokemoncenter-online.com/a/img/item/4521329397658/M/aaadd37ee3cb7e6c1fa0a4f99cef3d64015e44786b10a38bc426a4fcc23e364d.jpg",
+      "stock": "sold_out"
+    },
+    {
+      "id": "4521329397672",
+      "label": "😟 十ポケ十色 擔心皮卡丘吊飾（ひかえめ）",
+      "info_updated": "2026-10-29T13:41:31+08:00",
+      "title_ja": "マスコット 十ポケ十色 ひかえめなピカチュウ",
+      "price": "¥1,650",
+      "limit": "お一人様 1点限り",
+      "image": "https://www.pokemoncenter-online.com/a/img/item/4521329397672/M/e2583f7f5d8ba42f0ae0212e51c4a07b61102d1528c5636ff22ed7d092a0839a.jpg",
+      "stock": "sold_out"
+    }
+  ],
+  "recipients": {
+    "Recipient_1": [
+      "4521329454221",
+      "4521329454238",
+      "4521329454252",
+      "4521329454306",
+      "4521329425672",
+      "4521329419589",
+      "4521329434230",
+      "4521329436845",
+      "4521329454535",
+      "4521329453422",
+      "4521329397658",
+      "4521329397672"
+    ],
+    "Recipient_2": [
+      "4521329454221",
+      "4521329454238",
+      "4521329454252",
+      "4521329454306",
+      "4521329425672",
+      "4521329419589",
+      "4521329434230",
+      "4521329436845",
+      "4521329454535",
+      "4521329453422",
+      "4521329397658",
+      "4521329397672"
+    ]
+  }
+}

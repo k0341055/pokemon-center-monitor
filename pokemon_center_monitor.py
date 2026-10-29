@@ -1,8 +1,9 @@
 """
 pokemoncenter-online.com 補貨偵測器
+- 設定：監控商品、每位通知對象（Recipient_N）的商品清單與監控參數存於 watch_config.json，由 docs/ 的 UI 網頁編輯
 - 偵測：requests 平行抓取商品頁，解析 #availability 與「品切れ」標記，每輪約 1 秒
-- 通知：Gmail 廣播，補貨立即通知、仍有庫存每 1 小時提醒一次；確認售完後重置，下次補貨再立即通知
-- 排隊：偵測到 Queue-it 排隊頁（無法判斷庫存）時另發提醒信，同樣 1 小時冷卻
+- 通知：依 Recipient_N 分別寄信，補貨立即通知、仍有庫存每隔冷卻時間（預設 1 小時）提醒一次；確認售完後重置，下次補貨再立即通知
+- 排隊：偵測到 Queue-it 排隊頁（無法判斷庫存）時另發提醒信，同樣套用冷卻時間
 """
 
 import html
@@ -31,37 +32,47 @@ load_dotenv()
 
 BASE_URL = "https://www.pokemoncenter-online.com"
 
-CHECK_ROUNDS = int(os.environ.get("CHECK_ROUNDS", "1"))
 STATE_FILE = Path(os.environ.get("STATE_FILE", "seen_products.json"))
-NOTIFY_COOLDOWN = timedelta(hours=1)
+CONFIG_FILE = Path(os.environ.get("CONFIG_FILE", "watch_config.json"))
+CONFIG_RELOAD_ROUNDS = int(os.environ.get("CONFIG_RELOAD_ROUNDS", "10"))
 TEST_MODE = os.environ.get("TEST_MODE", "").strip() not in ("", "0", "false")
 SEND_TEST_EMAIL = os.environ.get("SEND_TEST_EMAIL", "").strip() not in ("", "0", "false")
 
 TW_TZ = timezone(timedelta(hours=8))  # 台灣時區 UTC+8
 
-GMAIL_SENDER = os.environ["GMAIL_SENDER"]
-GMAIL_PASSWORD = os.environ["GMAIL_PASSWORD"]
+GMAIL_SENDER = os.environ.get("GMAIL_SENDER", "")
+GMAIL_PASSWORD = os.environ.get("GMAIL_PASSWORD", "")
+# 第 N 個信箱 = watch_config.json 的 Recipient_N（UI 網頁公開，只用代稱、不放信箱）
 GMAIL_RECIPIENTS = [
     addr.strip()
-    for addr in os.environ["GMAIL_RECIPIENTS"].split(",")
+    for addr in os.environ.get("GMAIL_RECIPIENTS", "").split(",")
     if addr.strip()
 ]
 
-# ── 監控商品清單（id = 商品頁網址中的 13 碼 JAN）──────────
-WATCH_PRODUCTS: list[dict] = [
-    {"id": "4521329454221", "label": "🎄 聖誕樹皮卡丘娃娃"},
-    {"id": "4521329454238", "label": "🍪 偷吃餅乾皮卡丘吊飾"},
-    {"id": "4521329454252", "label": "🧸 皮卡丘與多邊獸Ⅱ玩具吊飾"},
-    {"id": "4521329454306", "label": "🎁 聖誕準備啾！蓬鬆玩偶 BOX"},
-    {"id": "4521329425672", "label": "😴 Pokémon Sleep 晚安咚咚鼠娃娃"},
-    {"id": "4521329419589", "label": "🚪 咚咚鼠等身大門擋（2.2kg）"},
-    {"id": "4521329434230", "label": "🧲 咚咚鼠・電電蟲磁鐵掛勾"},
-    {"id": "4521329436845", "label": "🤍 淺淺丘娃娃（Pokopia 淺色皮卡丘）"},
-    {"id": "4521329454535", "label": "🤍 淺淺丘登山扣吊飾"},
-    {"id": "4521329453422", "label": "🟣 百變怪變身皮卡丘吊飾"},
-    {"id": "4521329397658", "label": "😨 十ポケ十色 膽小皮卡丘吊飾"},
-    {"id": "4521329397672", "label": "😟 十ポケ十色 擔心皮卡丘吊飾（ひかえめ）"},
-]
+# ── 監控設定（啟動時由 load_config() 從 watch_config.json 載入）──────────
+WATCH_PRODUCTS: list[dict] = []                 # 商品庫：{"id": 13 碼 JAN, "label": 中文名稱, ...}
+RECIPIENT_PRODUCTS: dict[str, list[str]] = {}   # Recipient_N → 要通知的商品 id
+
+_RECIPIENT_RE = re.compile(r"Recipient_([1-9]\d*)")
+
+# ── 監控參數（watch_config.json 的 settings，可在 UI 調整）──────────
+DEFAULT_SETTINGS = {
+    "enabled": True,          # False：run 啟動後直接結束（暫停監控）
+    "check_rounds": 50,       # 每次 run 的偵測輪數（環境變數 CHECK_ROUNDS 可覆寫，供手動執行）
+    "interval_min": 4,        # 每輪間隔秒數，在 min～max 之間隨機
+    "interval_max": 6,
+    "cooldown_minutes": 60,   # 仍有庫存／排隊中時多久再提醒一次
+    "queue_alert": True,      # 官網啟用 Queue-it 排隊時是否寄提醒信
+}
+_SETTING_RANGES = {
+    "check_rounds": (1, 150),
+    "interval_min": (2, 60),
+    "interval_max": (2, 60),
+    "cooldown_minutes": (5, 1440),
+}
+# Actions job timeout-minutes 為 15，扣掉環境準備，一次 run 最多跑約 13 分鐘
+MAX_RUN_SECONDS = 13 * 60
+SETTINGS: dict = dict(DEFAULT_SETTINGS)
 
 _UA = (
     "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) "
@@ -69,8 +80,11 @@ _UA = (
     "Chrome/130.0.0.0 Safari/537.36"
 )
 
-# Queue-it 排隊時的狀態 key（存放於 notified，與商品 id 共用冷卻機制）
+# Queue-it 排隊時的狀態 key（存放於各 Recipient 的 notified，與商品 id 共用冷卻機制）
 _QUEUE_KEY = "__queue__"
+
+# 同時抓取的商品頁上限，避免商品一多就瞬間打出大量請求
+_MAX_WORKERS = 12
 
 # ── 商品頁解析（Salesforce Commerce Cloud 商品頁）──────────
 # 有庫存：<input id="availability" value="true">，無「品切れ」標籤，按鈕 class 無 default
@@ -81,6 +95,7 @@ _TITLE_RE = re.compile(r'<h1 class="lead">([^<]*)')
 _PRICE_RE = re.compile(r'<p class="price[^"]*">\s*<span class="txt">([^<]*)')
 _LIMIT_RE = re.compile(r'<p class="limit">([^<]*)')
 _BUTTON_RE = re.compile(r'<div class="add-to-cart-button[^"]*"><a href="">([^<]*)</a>')
+_IMAGE_RE = re.compile(r'<meta property="og:image" content="([^"]*)"')
 
 # 每個商品各自一個 Session（平行抓取時不共用，仍可在輪與輪之間重用 TCP/TLS connection）
 _SESSIONS: dict = {}
@@ -128,6 +143,142 @@ def _first(pattern: re.Pattern, text: str) -> str:
     return html.unescape(m.group(1)).strip() if m else ""
 
 
+def _alias_num(alias: str) -> int:
+    return int(_RECIPIENT_RE.fullmatch(alias).group(1))
+
+
+def recipient_email(alias: str) -> str | None:
+    """Recipient_N → GMAIL_RECIPIENTS 第 N 個信箱；超出範圍回傳 None。"""
+    n = _alias_num(alias)
+    return GMAIL_RECIPIENTS[n - 1] if n <= len(GMAIL_RECIPIENTS) else None
+
+
+# ─────────────────────────────────────────────
+# 監控設定（watch_config.json）
+# ─────────────────────────────────────────────
+
+
+def parse_config(data: dict) -> tuple[list, dict]:
+    """
+    watch_config.json 格式：
+      {"products": [{"id", "label", "title_ja", "price", ...}],
+       "recipients": {"Recipient_1": [商品id, ...], ...}}
+    回傳 (商品庫, {Recipient_N: 商品id清單})，略過重複商品、格式錯誤的代稱與不在商品庫的 id。
+    """
+    products, seen = [], set()
+    for p in data.get("products", []):
+        pid = str(p.get("id", "")).strip()
+        if not pid or pid in seen:
+            continue
+        seen.add(pid)
+        label = (p.get("label") or p.get("title_ja") or pid).strip()
+        products.append({**p, "id": pid, "label": label})
+
+    routes = {}
+    for alias, ids in data.get("recipients", {}).items():
+        if not _RECIPIENT_RE.fullmatch(alias):
+            log.warning(f"略過格式錯誤的通知對象代稱：{alias}（應為 Recipient_N）")
+            continue
+        routes[alias] = [pid for pid in dict.fromkeys(str(i) for i in ids) if pid in seen]
+    return products, dict(sorted(routes.items(), key=lambda kv: _alias_num(kv[0])))
+
+
+def parse_settings(data: dict) -> dict:
+    """讀取 settings，缺少或超出範圍的值改用預設值／範圍邊界。"""
+    raw = data.get("settings") or {}
+    settings = dict(DEFAULT_SETTINGS)
+    for key in ("enabled", "queue_alert"):
+        if isinstance(raw.get(key), bool):
+            settings[key] = raw[key]
+    for key, (lo, hi) in _SETTING_RANGES.items():
+        try:
+            settings[key] = min(max(int(raw.get(key, settings[key])), lo), hi)
+        except (TypeError, ValueError):
+            log.warning(f"settings.{key} 不是數字，使用預設值 {settings[key]}")
+    settings["interval_max"] = max(settings["interval_max"], settings["interval_min"])
+    return settings
+
+
+def apply_config(data: dict):
+    global WATCH_PRODUCTS, RECIPIENT_PRODUCTS, SETTINGS
+    WATCH_PRODUCTS, RECIPIENT_PRODUCTS = parse_config(data)
+    SETTINGS = parse_settings(data)
+
+
+def load_config():
+    apply_config(json.loads(CONFIG_FILE.read_text(encoding="utf-8")))
+
+
+def _cooldown_text() -> str:
+    minutes = SETTINGS["cooldown_minutes"]
+    return f"{minutes // 60} 小時" if minutes % 60 == 0 else f"{minutes} 分鐘"
+
+
+def _config_summary() -> str:
+    parts = [f"{alias} {len(ids)} 件" for alias, ids in RECIPIENT_PRODUCTS.items()]
+    s = SETTINGS
+    return (
+        f"商品庫 {len(WATCH_PRODUCTS)} 件｜" + ("、".join(parts) or "尚無通知對象")
+        + f"｜{'監控中' if s['enabled'] else '已暫停'}・每次 {s['check_rounds']} 輪"
+        + f"・間隔 {s['interval_min']}~{s['interval_max']} 秒・提醒冷卻 {_cooldown_text()}"
+        + f"・排隊提醒{'開' if s['queue_alert'] else '關'}"
+    )
+
+
+def run_rounds() -> int:
+    """本次 run 的輪數：環境變數 CHECK_ROUNDS（手動執行時填）優先，否則用 UI 設定；超過 job 時限會自動減少。"""
+    env = os.environ.get("CHECK_ROUNDS", "").strip()
+    rounds = int(env) if env else SETTINGS["check_rounds"]
+    limit = max(1, MAX_RUN_SECONDS // (SETTINGS["interval_max"] + 2))  # 每輪抓取約 1 秒，多留 1 秒餘裕
+    if rounds > limit:
+        log.warning(f"{rounds} 輪 × 最長間隔 {SETTINGS['interval_max']} 秒會超過 job 時限，改為 {limit} 輪")
+        rounds = limit
+    return rounds
+
+
+def reload_remote_config():
+    """
+    Actions 中每隔 CONFIG_RELOAD_ROUNDS 輪從 GitHub 讀取最新 watch_config.json，
+    UI 網頁修改後約 1 分鐘內生效，不用等下一次 run。讀取失敗時沿用目前設定。
+    """
+    repo = os.environ.get("GITHUB_REPOSITORY")
+    token = os.environ.get("GITHUB_TOKEN")
+    if not (repo and token):
+        return
+    try:
+        resp = requests.get(
+            f"https://api.github.com/repos/{repo}/contents/{CONFIG_FILE.name}",
+            params={"ref": os.environ.get("GITHUB_REF_NAME", "main")},
+            headers={"Authorization": f"Bearer {token}", "Accept": "application/vnd.github.raw+json"},
+            timeout=10,
+        )
+        resp.raise_for_status()
+        data = resp.json()
+    except (requests.RequestException, ValueError) as e:
+        log.warning(f"重新讀取監控設定失敗，沿用目前設定：{e}")
+        return
+
+    before = (WATCH_PRODUCTS, RECIPIENT_PRODUCTS, SETTINGS)
+    apply_config(data)
+    if (WATCH_PRODUCTS, RECIPIENT_PRODUCTS, SETTINGS) != before:
+        log.info(f"監控設定已更新：{_config_summary()}")
+        warn_missing_recipients()
+
+
+def active_routes() -> dict[str, list[str]]:
+    """有對應信箱的通知對象 → 商品 id。"""
+    return {alias: ids for alias, ids in RECIPIENT_PRODUCTS.items() if recipient_email(alias)}
+
+
+def warn_missing_recipients():
+    for alias, ids in RECIPIENT_PRODUCTS.items():
+        if ids and not recipient_email(alias):
+            log.warning(
+                f"{alias} 在 GMAIL_RECIPIENTS 找不到第 {_alias_num(alias)} 個信箱"
+                f"（目前只有 {len(GMAIL_RECIPIENTS)} 個），它的 {len(ids)} 件商品不會通知"
+            )
+
+
 # ─────────────────────────────────────────────
 # 狀態管理（1 小時冷卻）
 # ─────────────────────────────────────────────
@@ -135,12 +286,13 @@ def _first(pattern: re.Pattern, text: str) -> str:
 
 def load_state() -> dict:
     """
-    回傳 notified：{商品id: ISO時間戳}  ← 1 小時通知冷卻
+    回傳 notified：{Recipient_N: {商品id 或 __queue__: ISO時間戳}}  ← 1 小時通知冷卻
     確認售完時會移除該商品，下次補貨即視為新補貨、立即通知。
     """
     if STATE_FILE.exists():
         data = json.loads(STATE_FILE.read_text(encoding="utf-8"))
-        return data.get("notified", {})
+        # 舊版格式 {商品id: 時間戳}（全體廣播）無法對應到個別對象，直接捨棄
+        return {k: v for k, v in data.get("notified", {}).items() if isinstance(v, dict)}
     return {}
 
 
@@ -188,6 +340,7 @@ def parse_product_page(product: dict, page_html: str, final_url: str) -> dict:
         "price": "",
         "limit": "",
         "button": "",
+        "image": "",
         "reason": "",
     }
 
@@ -212,6 +365,7 @@ def parse_product_page(product: dict, page_html: str, final_url: str) -> dict:
         "price": f"¥{price}" if price else "",
         "limit": _first(_LIMIT_RE, page_html),
         "button": _first(_BUTTON_RE, page_html),
+        "image": _first(_IMAGE_RE, page_html),
     })
 
     if availability == "true" and stock_label != "品切れ":
@@ -264,10 +418,10 @@ def fetch_product(product: dict) -> dict:
     }
 
 
-def fetch_all() -> list:
-    """平行抓取所有監控商品頁（每個商品獨立 Session）。"""
-    with ThreadPoolExecutor(max_workers=len(WATCH_PRODUCTS)) as executor:
-        results = list(executor.map(fetch_product, WATCH_PRODUCTS))
+def fetch_all(products: list) -> list:
+    """平行抓取商品頁（每個商品獨立 Session）。"""
+    with ThreadPoolExecutor(max_workers=min(len(products), _MAX_WORKERS)) as executor:
+        results = list(executor.map(fetch_product, products))
 
     for r in results:
         if r["status"] == "in_stock":
@@ -303,9 +457,9 @@ def _send_email(to: list, subject: str, body: str) -> bool:
         return False
 
 
-def notify_restock(products: list, reminder_ids: set) -> bool:
+def notify_restock(alias: str, products: list, reminder_ids: set) -> bool:
     """
-    補貨廣播：寄給全體 GMAIL_RECIPIENTS。
+    補貨通知：寄給 alias 對應的信箱，只列出該對象負責的商品。
     reminder_ids：已通知過、冷卻到期仍有庫存的商品（標示為每小時提醒）。
     """
     count = len(products)
@@ -316,6 +470,7 @@ def notify_restock(products: list, reminder_ids: set) -> bool:
 
     lines = [
         f"Pokémon Center Online 偵測到 {count} 件監控商品有庫存",
+        f"通知對象：{alias}",
         f"偵測時間：{datetime.now(TW_TZ).strftime('%Y-%m-%d %H:%M:%S')}（台灣時間）",
     ]
     if TEST_MODE:
@@ -324,7 +479,7 @@ def notify_restock(products: list, reminder_ids: set) -> bool:
 
     for i, p in enumerate(products, 1):
         lines.append(f"\n【商品 {i}】{p['label']}")
-        lines.append(f"通知類型：{'⏰ 仍有庫存（每小時提醒）' if p['id'] in reminder_ids else '🆕 剛補貨'}")
+        lines.append(f"通知類型：{f'⏰ 仍有庫存（每 {_cooldown_text()}提醒）' if p['id'] in reminder_ids else '🆕 剛補貨'}")
         lines.append(f"商品名：{p['title']}")
         lines.append(f"價格：{p['price']}（税込）")
         if p["limit"]:
@@ -334,36 +489,45 @@ def notify_restock(products: list, reminder_ids: set) -> bool:
         lines.append(f"商品連結：{p['url']}")
         lines.append("-" * 40)
 
-    return _send_email(GMAIL_RECIPIENTS, subject, "\n".join(lines))
+    return _send_email([recipient_email(alias)], subject, "\n".join(lines))
 
 
-def notify_queue(products: list) -> bool:
+def notify_queue(alias: str, products: list) -> bool:
     """Queue-it 排隊提醒：排隊期間無法判斷庫存，通常代表大量補貨或新品發售。"""
     test_tag = "【測試】" if TEST_MODE else ""
     subject = f"{test_tag}【寶可夢中心 排隊中】官網啟用排隊，可能正在補貨"
     lines = [
         "Pokémon Center Online 目前啟用 Queue-it 排隊，偵測器無法判斷庫存。",
         "這通常代表大量補貨或新品發售，建議手動進入排隊確認：",
+        f"通知對象：{alias}",
         f"偵測時間：{datetime.now(TW_TZ).strftime('%Y-%m-%d %H:%M:%S')}（台灣時間）",
         "",
     ]
     for p in products:
         lines.append(f"▸ {p['label']}：{p['url']}")
-    return _send_email(GMAIL_RECIPIENTS, subject, "\n".join(lines))
+    return _send_email([recipient_email(alias)], subject, "\n".join(lines))
 
 
 def send_test_email() -> bool:
-    """測試信：確認 Gmail 帳密與收件人設定正確（不抓取商品頁）。"""
-    subject = "【寶可夢中心 測試信】Gmail 通知設定正常"
-    lines = [
-        "這是 Pokémon Center 補貨偵測器的測試信，收到代表 Gmail 寄信設定正常。",
-        f"寄送時間：{datetime.now(TW_TZ).strftime('%Y-%m-%d %H:%M:%S')}（台灣時間）",
-        "",
-        f"監控商品（{len(WATCH_PRODUCTS)} 件）：",
-    ]
-    for p in WATCH_PRODUCTS:
-        lines.append(f"▸ {p['label']}：{_product_url(p['id'])}")
-    return _send_email(GMAIL_RECIPIENTS, subject, "\n".join(lines))
+    """測試信：GMAIL_RECIPIENTS 每個信箱各寄一封，列出它對應的 Recipient_N 與商品（不抓取商品頁）。"""
+    labels = {p["id"]: p["label"] for p in WATCH_PRODUCTS}
+    all_ok = True
+    for n, email in enumerate(GMAIL_RECIPIENTS, 1):
+        alias = f"Recipient_{n}"
+        ids = RECIPIENT_PRODUCTS.get(alias, [])
+        lines = [
+            "這是 Pokémon Center 補貨偵測器的測試信，收到代表 Gmail 寄信設定正常。",
+            f"你的通知代稱：{alias}（GMAIL_RECIPIENTS 第 {n} 個信箱）",
+            f"寄送時間：{datetime.now(TW_TZ).strftime('%Y-%m-%d %H:%M:%S')}（台灣時間）",
+            "",
+            f"會通知你的商品（{len(ids)} 件）：" if ids else "目前沒有分配給你的商品，補貨時不會收到通知。",
+        ]
+        for pid in ids:
+            lines.append(f"▸ {labels[pid]}：{_product_url(pid)}")
+        subject = f"【寶可夢中心 測試信】{alias} 通知設定正常"
+        all_ok = _send_email([email], subject, "\n".join(lines)) and all_ok
+    warn_missing_recipients()
+    return all_ok
 
 
 # ─────────────────────────────────────────────
@@ -373,45 +537,62 @@ def send_test_email() -> bool:
 
 def check_once() -> bool:
     """回傳 False 代表本輪所有商品都無法判斷（連線失敗或被攔截）。"""
-    results = fetch_all()
+    routes = active_routes()
+    watched_ids = {pid for ids in routes.values() for pid in ids}
+    products = [p for p in WATCH_PRODUCTS if p["id"] in watched_ids]
+    if not products:
+        log.info("沒有分配給通知對象的商品，本輪略過")
+        return True
+
+    results = fetch_all(products)
+    by_id = {r["id"]: r for r in results}
 
     now = datetime.now(TW_TZ)
-    cutoff = now - NOTIFY_COOLDOWN
-    notified = load_state()
+    cutoff = now - timedelta(minutes=SETTINGS["cooldown_minutes"])
+    # 只保留目前設定中的對象與商品；從某人清單移除再加回 → 視為新分配，有庫存會立即通知
+    notified = {
+        alias: {k: ts for k, ts in rec.items() if k == _QUEUE_KEY or k in routes[alias]}
+        for alias, rec in load_state().items()
+        if alias in routes
+    }
 
     # 確認售完 → 清除通知紀錄（下次補貨視為新補貨、立即通知）
     # 無法判斷 / 排隊中 → 保留紀錄，避免誤判造成重複通知
     for r in results:
-        if r["status"] == "sold_out" and r["id"] in notified:
+        if r["status"] == "sold_out" and any(r["id"] in rec for rec in notified.values()):
             log.info(f"{r['label']} 已售完，重置通知紀錄")
-            notified.pop(r["id"])
+            for rec in notified.values():
+                rec.pop(r["id"], None)
 
-    in_stock = [r for r in results if r["status"] == "in_stock"]
-    to_notify = [
-        r for r in in_stock
-        if r["id"] not in notified or _parse_ts(notified[r["id"]]) < cutoff
-    ]
-    if to_notify:
-        reminder_ids = {r["id"] for r in to_notify if r["id"] in notified}
-        log.info(
-            f"發送補貨通知：{len(to_notify)} 件"
-            f"（有庫存 {len(in_stock)} 件，跳過 {len(in_stock) - len(to_notify)} 件冷卻中）"
-        )
-        if notify_restock(to_notify, reminder_ids):
-            for r in to_notify:
-                notified[r["id"]] = now.isoformat()
-    elif in_stock:
-        log.info(f"有庫存的 {len(in_stock)} 件商品均在 1 小時冷卻期內")
+    for alias, ids in routes.items():
+        rec = notified.setdefault(alias, {})
+        mine = [by_id[pid] for pid in ids]
 
-    queued = [r for r in results if r["status"] == "queue"]
-    if queued:
-        if _QUEUE_KEY not in notified or _parse_ts(notified[_QUEUE_KEY]) < cutoff:
-            if notify_queue(queued):
-                notified[_QUEUE_KEY] = now.isoformat()
-    else:
-        notified.pop(_QUEUE_KEY, None)
+        in_stock = [r for r in mine if r["status"] == "in_stock"]
+        to_notify = [
+            r for r in in_stock
+            if r["id"] not in rec or _parse_ts(rec[r["id"]]) < cutoff
+        ]
+        if to_notify:
+            reminder_ids = {r["id"] for r in to_notify if r["id"] in rec}
+            log.info(
+                f"{alias}：發送補貨通知 {len(to_notify)} 件"
+                f"（有庫存 {len(in_stock)} 件，跳過 {len(in_stock) - len(to_notify)} 件冷卻中）"
+            )
+            if notify_restock(alias, to_notify, reminder_ids):
+                for r in to_notify:
+                    rec[r["id"]] = now.isoformat()
+        elif in_stock:
+            log.info(f"{alias}：有庫存的 {len(in_stock)} 件商品均在 {_cooldown_text()}冷卻期內")
 
-    save_state(notified)
+        queued = [r for r in mine if r["status"] == "queue"]
+        if not queued:
+            rec.pop(_QUEUE_KEY, None)
+        elif SETTINGS["queue_alert"] and (_QUEUE_KEY not in rec or _parse_ts(rec[_QUEUE_KEY]) < cutoff):
+            if notify_queue(alias, queued):
+                rec[_QUEUE_KEY] = now.isoformat()
+
+    save_state({alias: rec for alias, rec in notified.items() if rec})
     return any(r["status"] != "unknown" for r in results)
 
 
@@ -421,16 +602,31 @@ def check_once() -> bool:
 
 
 def main():
+    missing = [k for k in ("GMAIL_SENDER", "GMAIL_PASSWORD", "GMAIL_RECIPIENTS") if not os.environ.get(k, "").strip()]
+    if missing:
+        raise SystemExit(f"缺少環境變數：{', '.join(missing)}")
+    load_config()
+
     if SEND_TEST_EMAIL:
         log.info("寄送測試信（不執行偵測）")
         raise SystemExit(0 if send_test_email() else 1)
 
-    log.info(f"Pokémon Center 補貨偵測器 | 輪數：{CHECK_ROUNDS} | 監控商品：{len(WATCH_PRODUCTS)} 件")
+    log.info(f"Pokémon Center 補貨偵測器 | {_config_summary()}")
+    if not SETTINGS["enabled"]:
+        log.info("監控已在 UI 暫停，本次不執行")
+        return
+    warn_missing_recipients()
+    rounds = run_rounds()
     consecutive_failures = 0
-    for round_num in range(1, CHECK_ROUNDS + 1):
+    for round_num in range(1, rounds + 1):
         try:
-            if CHECK_ROUNDS > 1:
-                log.info(f"── 第 {round_num}/{CHECK_ROUNDS} 輪 ──")
+            if rounds > 1:
+                log.info(f"── 第 {round_num}/{rounds} 輪 ──")
+            if round_num > 1 and (round_num - 1) % CONFIG_RELOAD_ROUNDS == 0:
+                reload_remote_config()
+                if not SETTINGS["enabled"]:
+                    log.info("監控已在 UI 暫停，提早結束本次 run")
+                    break
             success = check_once()
             if success:
                 consecutive_failures = 0
@@ -444,10 +640,10 @@ def main():
                     )
                     break
         except Exception as error:
-            log.exception(f"第 {round_num}/{CHECK_ROUNDS} 輪發生非預期錯誤：{error}")
-        if round_num < CHECK_ROUNDS:
-            wait = random.randint(4, 6)
-            log.info(f"等待 {wait} 秒後進行下一輪...")
+            log.exception(f"第 {round_num}/{rounds} 輪發生非預期錯誤：{error}")
+        if round_num < rounds:
+            wait = random.uniform(SETTINGS["interval_min"], SETTINGS["interval_max"])
+            log.info(f"等待 {wait:.1f} 秒後進行下一輪...")
             time.sleep(wait)
     log.info("所有輪次完成")
 
