@@ -86,6 +86,8 @@ flowchart TD
 
 HTTP 429 / 5xx 與連線逾時最多重試 3 次。
 
+**已知限制：** 官網開啟 Queue-it 等候室（`wr.pokemoncenter-online.com`）期間，GitHub Actions 的主機（Ubuntu x64／ARM、macOS、Windows 都測過）會被擋在「Restricted access」頁（HTTP 403）。這段期間監控看不到任何商品（log 顯示「官網等候室拒絕連線」，連續 3 輪失敗就提早結束該次 run），UI 新增的商品也抓不到品名與價格；等候室關閉後自動恢復，新增的商品再按 ↻ 重新抓取即可。
+
 ## 通知邏輯
 
 每位 Recipient 分開寄信、分開計算冷卻，信件只列出該對象負責的商品。
