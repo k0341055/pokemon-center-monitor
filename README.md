@@ -79,8 +79,8 @@ flowchart TD
 
 | 狀態 | 判斷條件 |
 |---|---|
-| `in_stock` | `<input id="availability" value="true">` 且無「品切れ」標籤 |
-| `sold_out` | `availability=false` 或 `<p class="stock"><span>品切れ</span></p>` |
+| `in_stock` | `<input id="availability" value="true">`、無「品切れ」標籤，且「カートに入れる」按鈕可點選（class 沒有 `default`） |
+| `sold_out` | `availability=false`、`<p class="stock"><span>品切れ</span></p>`，或按鈕是灰色不能按（例如受注期間外，頁面不會寫品切れ） |
 | `queue` | 被導向 `*.queue-it.net` 排隊頁（大量補貨／新品發售時官網會啟用） |
 | `unknown` | HTTP 錯誤、連線失敗，或頁面缺少 `availability` 標記（可能被 bot 防護攔截或官網改版） |
 

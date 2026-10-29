@@ -91,7 +91,10 @@ _MAX_WORKERS = 12
 # ── 商品頁解析（Salesforce Commerce Cloud 商品頁）──────────
 # 有庫存：<input id="availability" value="true">，無「品切れ」標籤，按鈕 class 無 default
 # 售完  ：<input id="availability" value="false">，<p class="stock"><span>品切れ</span></p>
+# 不可購買：availability=true、沒有「品切れ」，但「カートに入れる」按鈕 class 有 default（灰色不能按，
+#          例如受注期間外的商品），也視為售完
 _AVAILABILITY_RE = re.compile(r'id="availability"\s+value="(true|false)"')
+_CART_CLASS_RE = re.compile(r'<div class="add-to-cart-button([^"]*)"')
 _STOCK_LABEL_RE = re.compile(r'<p class="stock">\s*<span>([^<]*)</span>')
 _TITLE_RE = re.compile(r'<h1 class="lead">([^<]*)')
 _PRICE_RE = re.compile(r'<p class="price[^"]*">\s*<span class="txt">([^<]*)')
@@ -356,8 +359,8 @@ def _parse_ts(ts_str: str) -> datetime:
 def parse_product_page(product: dict, page_html: str, final_url: str) -> dict:
     """
     解析商品頁 HTML，回傳 status：
-      "in_stock"  ：availability=true 且無「品切れ」標籤
-      "sold_out"  ：availability=false 或顯示「品切れ」
+      "in_stock"  ：availability=true、無「品切れ」標籤，且「カートに入れる」按鈕可點選
+      "sold_out"  ：availability=false、顯示「品切れ」，或按鈕無法點選
       "queue"     ：被導向 Queue-it 排隊頁，無法判斷庫存
       "unknown"   ：頁面缺少庫存標記（可能被 bot 防護攔截或改版）
     """
@@ -398,8 +401,12 @@ def parse_product_page(product: dict, page_html: str, final_url: str) -> dict:
         "image": _first(_IMAGE_RE, page_html),
     })
 
-    if availability == "true" and stock_label != "品切れ":
+    cart_disabled = "default" in _first(_CART_CLASS_RE, page_html).split()
+    if availability == "true" and stock_label != "品切れ" and not cart_disabled:
         result["status"] = "in_stock"
+    elif availability == "true" and stock_label != "品切れ":
+        result["status"] = "sold_out"
+        result["reason"] = "カートに入れる 按鈕無法點選"
     else:
         result["status"] = "sold_out"
         if availability == "true":
