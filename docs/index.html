@@ -210,6 +210,10 @@ input:disabled { opacity: .55; }
 .body { display: grid; gap: 5px; min-width: 0; }
 .title-row { display: flex; gap: 6px; align-items: flex-start; }
 .zh { font-size: 16px; font-weight: 700; line-height: 1.35; min-width: 0; overflow-wrap: anywhere; }
+.plink { color: inherit; text-decoration: none; }
+.plink::after { content: "↗"; margin-left: 4px; font-size: .8em; font-weight: 400; color: var(--muted); }
+.plink:hover { color: var(--r1); text-decoration: underline; text-underline-offset: 3px; }
+.plink:hover::after { color: var(--r1); }
 .edit-input { width: 100%; font-size: 15px; font-weight: 700; padding: 4px 8px; }
 .ja { font-size: 13px; line-height: 1.5; color: var(--muted); overflow-wrap: anywhere; }
 .ja.loading { color: var(--warn-ink); }
@@ -723,7 +727,7 @@ function poolCardHTML(p, cfg, aliases, edit) {
     <span class="grip" title="拖拉到通知對象"></span>
     ${thumbHTML(p, "thumb")}
     <div class="body">
-      <div class="title-row"><h3 class="zh">${esc(labelOf(p))}</h3><button type="button" class="icon sm edit-only" data-edit aria-label="修改中文名稱">${ICON.edit}</button></div>
+      <div class="title-row"><h3 class="zh"><a class="plink" href="${productUrl(p.id)}" target="_blank" rel="noopener" title="開啟官網商品頁">${esc(labelOf(p))}</a></h3><button type="button" class="icon sm edit-only" data-edit aria-label="修改中文名稱">${ICON.edit}</button></div>
       ${ja}
       ${meta ? `<p class="meta">${meta}</p>` : ""}
       ${aliases.length ? `<div class="assign"><span class="assign-k">通知</span>${pills}</div>` : ""}
