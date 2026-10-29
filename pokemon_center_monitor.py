@@ -148,22 +148,13 @@ def _first(pattern: re.Pattern, text: str) -> str:
 def _load_recipient_secrets() -> dict[int, str]:
     """
     UI 網頁新增的收件人存成 GitHub Secret RECIPIENT_N（瀏覽器加密後寫入，無法讀回）。
-    名稱不固定，Actions 以 SECRETS_JSON=${{ toJSON(secrets) }} 整包傳入，這裡只取 RECIPIENT_N；
-    本機執行可直接設環境變數 RECIPIENT_N。
+    workflow 逐一以環境變數 RECIPIENT_1～RECIPIENT_10 傳入（沒建立的是空字串）；本機執行同樣設環境變數。
     """
-    sources = []
-    try:
-        sources.append(json.loads(os.environ.get("SECRETS_JSON") or "{}"))
-    except ValueError:
-        log.warning("SECRETS_JSON 不是合法 JSON，略過")
-    sources.append(os.environ)
-
     found = {}
-    for source in sources:
-        for key, value in source.items():
-            m = _RECIPIENT_SECRET_RE.fullmatch(key)
-            if m and isinstance(value, str) and value.strip():
-                found.setdefault(int(m.group(1)), value.strip())
+    for key, value in os.environ.items():
+        m = _RECIPIENT_SECRET_RE.fullmatch(key)
+        if m and value.strip():
+            found[int(m.group(1))] = value.strip()
     return found
 
 

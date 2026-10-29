@@ -76,6 +76,16 @@ jobs:
           SEND_TEST_EMAIL:  ${{ inputs.send_test_email }}
           STATE_FILE:       'seen_products.json'
           GITHUB_TOKEN:     ${{ github.token }}
-          # UI 新增的收件人存成 Secret RECIPIENT_N（名稱不固定），整包傳入後程式只取 RECIPIENT_N
-          SECRETS_JSON:     ${{ toJSON(secrets) }}
+          # UI 新增的收件人存成 Secret RECIPIENT_N（UI 上限 10 位，與這裡一致）；沒建立的 Secret 會是空字串
+          # 不要改成 toJSON(secrets) 整包傳入：GitHub 會判定為可疑 workflow，每次 run 都要手動核准
+          RECIPIENT_1:      ${{ secrets.RECIPIENT_1 }}
+          RECIPIENT_2:      ${{ secrets.RECIPIENT_2 }}
+          RECIPIENT_3:      ${{ secrets.RECIPIENT_3 }}
+          RECIPIENT_4:      ${{ secrets.RECIPIENT_4 }}
+          RECIPIENT_5:      ${{ secrets.RECIPIENT_5 }}
+          RECIPIENT_6:      ${{ secrets.RECIPIENT_6 }}
+          RECIPIENT_7:      ${{ secrets.RECIPIENT_7 }}
+          RECIPIENT_8:      ${{ secrets.RECIPIENT_8 }}
+          RECIPIENT_9:      ${{ secrets.RECIPIENT_9 }}
+          RECIPIENT_10:     ${{ secrets.RECIPIENT_10 }}
         run: python pokemon_center_monitor.py

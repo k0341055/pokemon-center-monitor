@@ -255,7 +255,8 @@ input:disabled { opacity: .55; }
 .add-rcpt {
   border: 2px dashed var(--rule); background: transparent; border-radius: var(--radius); padding: 12px; font-weight: 700; color: var(--muted); cursor: pointer;
 }
-.add-rcpt:hover { color: var(--ink); border-color: var(--muted); }
+.add-rcpt:hover:not(:disabled) { color: var(--ink); border-color: var(--muted); }
+.add-rcpt:disabled { cursor: default; opacity: .6; }
 .map-note { font-size: 12.5px; color: var(--muted); padding-inline: 4px; }
 .map-note.warn { color: var(--warn-ink); background: var(--warn-bg); padding: 8px 10px; border-radius: 10px; }
 .rcpt-form { background: var(--surface); border: 1px solid var(--rule); border-radius: var(--radius); padding: 14px; display: grid; gap: 10px; }
@@ -425,6 +426,7 @@ const DEFAULT_SETTINGS = { enabled: true, check_rounds: 50, interval_min: 4, int
 const RANGES = { check_rounds: [1, 150], interval_min: [2, 60], interval_max: [2, 60], cooldown_minutes: [5, 1440] };
 const MAX_RUN_SECONDS = 13 * 60;
 const TRIGGER_MINUTES = 5;  // cron-job.org schedule; changed on cron-job.org, not here
+const MAX_RECIPIENTS = 10;  // pokemon_center_monitor.yml passes secrets RECIPIENT_1..RECIPIENT_10 one by one
 const COLORS = ["var(--r1)", "var(--r2)", "var(--r3)", "var(--r4)", "var(--r5)", "var(--r6)"];
 const ICON = {
   open: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M14 4h6v6M20 4l-9 9M19 14v5a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V6a1 1 0 0 1 1-1h5"/></svg>',
@@ -811,7 +813,9 @@ function render() {
   $("addTo").innerHTML = aliases.map(a =>
     `<button type="button" class="pill" data-addto="${a}" style="--c:${colorOf(a)}" aria-pressed="${addTo.has(a)}" aria-label="新增時通知 ${a}">${short(a)}</button>`
   ).join("") || `<span class="hint">先新增通知對象</span>`;
-  $("addRcpt").textContent = `＋ 新增通知對象（${nextAlias(cfg)}）`;
+  const next = nextAlias(cfg);
+  $("addRcpt").disabled = !next;
+  $("addRcpt").textContent = next ? `＋ 新增通知對象（${next}）` : `通知對象已達 ${MAX_RECIPIENTS} 位上限`;
   $("refreshAll").disabled = !cfg.products.length;
   $("footMeta").innerHTML = `設定檔：<a href="https://github.com/${OWNER}/${REPO}/blob/${BRANCH}/${CONFIG_PATH}" target="_blank" rel="noopener">${CONFIG_PATH}</a>`
     + (loadedAt ? `・最後同步 ${pad(loadedAt.getHours())}:${pad(loadedAt.getMinutes())}:${pad(loadedAt.getSeconds())}` : "");
@@ -875,10 +879,11 @@ function onSettingsChange(e) {
 }
 $("settingsForm").addEventListener("change", onSettingsChange);
 
+// lowest free Recipient_N, or "" when all MAX_RECIPIENTS are taken
 function nextAlias(cfg) {
   let n = 1;
   while (cfg.recipients[`Recipient_${n}`]) n++;
-  return `Recipient_${n}`;
+  return n <= MAX_RECIPIENTS ? `Recipient_${n}` : "";
 }
 
 function toast(msg) {
@@ -1007,7 +1012,7 @@ document.addEventListener("click", e => {
   } else if (btn.dataset.setEmail) {
     openEmailForm(btn.dataset.setEmail, "change");
   } else if (btn.id === "addRcpt") {
-    openEmailForm(nextAlias(cfg), "new");
+    if (nextAlias(cfg)) openEmailForm(nextAlias(cfg), "new");
   } else if (btn.id === "refreshAll") {
     requestInfo(cfg.products.map(p => p.id), true);
     toast("已請 GitHub Actions 重新抓取全部商品，約 1 分鐘");
@@ -1283,6 +1288,7 @@ $("emailForm").addEventListener("submit", async e => {
   if (!canEdit() || save.disabled) return;
   const mode = form.dataset.mode;
   const alias = mode === "new" ? nextAlias(view()) : form.dataset.alias;
+  if (!alias) { toast(`通知對象最多 ${MAX_RECIPIENTS} 位`); return; }
   const email = $("emailInput").value.trim();
   if (!/^[^\s@,;]+@[^\s@,;]+\.[^\s@,;]+$/.test(email)) { toast("信箱格式不對"); return; }
   save.disabled = true;

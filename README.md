@@ -109,7 +109,7 @@ Email 發送失敗時不寫入冷卻紀錄，下一輪會重試。
 |---|---|
 | `GMAIL_SENDER` | 寄件 Gmail 帳號 |
 | `GMAIL_PASSWORD` | Gmail App Password（非登入密碼） |
-| `RECIPIENT_N` | `Recipient_N` 的信箱，由 UI 新增收件人時寫入（不用手動建立） |
+| `RECIPIENT_N` | `Recipient_N` 的信箱，由 UI 新增收件人時寫入（不用手動建立），N 最大 10 |
 | `GMAIL_RECIPIENTS` | 舊設定：收件人逗號分隔，第 N 個＝`Recipient_N`（沒有 `RECIPIENT_N` 時使用）。全部收件人都改用 UI 設定後可刪除 |
 
 > 設定路徑：GitHub Repo → Settings → Secrets and variables → Actions → **Secrets** 標籤 → New repository secret
@@ -154,7 +154,7 @@ Request Body：
 | `CHECK_ROUNDS` | 空（用 UI 設定） | 有填時覆寫每次 run 的偵測輪數 |
 | `TEST_MODE` | 空 | 非空時信件標題加上【測試】 |
 | `SEND_TEST_EMAIL` | 空 | 非空時只寄測試信確認 Gmail 設定，不執行偵測 |
-| `SECRETS_JSON` | 空 | Actions 以 `${{ toJSON(secrets) }}` 傳入，程式只取其中的 `RECIPIENT_N`。本機可改設環境變數 `RECIPIENT_N` |
+| `RECIPIENT_N` | 空 | `Recipient_N` 的信箱。workflow 逐一傳入 Secret `RECIPIENT_1`～`RECIPIENT_10`（所以 UI 最多 10 位通知對象）；不用 `toJSON(secrets)` 整包傳入，那樣 GitHub 會判定 workflow 可疑而要求每次手動核准 |
 | `CONFIG_FILE` | `watch_config.json` | 監控設定檔 |
 | `CONFIG_RELOAD_ROUNDS` | `10` | 執行中每隔幾輪從 GitHub 重新讀取設定（需要 `GITHUB_TOKEN`，Actions 中自動提供） |
 | `STATE_FILE` | `seen_products.json` | 通知冷卻狀態檔 |
