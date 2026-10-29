@@ -131,6 +131,11 @@ input[type="text"], input[type="password"], input[type="email"], input:not([type
 .field input { width: 100%; }
 .hint { font-size: 13px; color: var(--muted); }
 .readonly-note { font-size: 14px; color: var(--warn-ink); background: var(--warn-bg); padding: 8px 12px; border-radius: 10px; }
+.bm { background: var(--bg); border-radius: var(--radius); padding: 10px 14px; font-size: 13.5px; }
+.bm summary { cursor: pointer; font-weight: 700; }
+.bm[open] summary { margin-bottom: 8px; }
+.bm .howto { gap: 6px; }
+.bm-link { display: inline-block; color: var(--ink); text-decoration: none; cursor: grab; }
 
 /* ---------- settings ---------- */
 .settings { display: grid; grid-template-columns: repeat(auto-fill, minmax(190px, 1fr)); gap: 12px 16px; align-items: end; }
@@ -359,6 +364,15 @@ a.thumb:hover { border-color: var(--r1); }
       <button class="btn primary" type="submit">新增</button>
     </form>
     <p class="hint edit-only">新增後 GitHub Actions 會到官網抓日文品名、價格和圖片，大約 30 秒到 1 分鐘。可以一次貼多個連結，用空白或換行分開。</p>
+    <details class="bm edit-only">
+      <summary>官網等候室擋住 GitHub 時：用書籤從官網匯入</summary>
+      <ol class="howto">
+        <li>把這個按鈕拖到瀏覽器的書籤列：<a class="btn sm bm-link" id="bmLink" href="#">匯入監控</a></li>
+        <li>打開官網商品頁，點書籤列的 <b>匯入監控</b>，這個頁面會跳出確認視窗</li>
+        <li>商品還不在商品庫就新增（通知上面選的對象），已經在就更新日文品名、價格、圖片和庫存</li>
+      </ol>
+      <p class="hint">是在你的瀏覽器讀取官網頁面，所以等候室擋住 GitHub 時也能用。手機沒有書籤列：按 <button class="btn sm" type="button" id="bmCopy">複製書籤程式碼</button>，隨便加一個書籤，再把書籤網址改成貼上的內容。</p>
+    </details>
     <p class="readonly-note" id="readonlyNote" hidden>目前是唯讀模式。點上面的「GitHub 連線設定」貼上 token 後，就能新增、刪除和拖拉分配商品。</p>
   </div>
 </section>
@@ -514,6 +528,11 @@ function applyOp(cfg, op) {
     case "addRcpt": if (!cfg.recipients[op.alias]) cfg.recipients[op.alias] = []; break;
     case "removeRcpt": delete cfg.recipients[op.alias]; break;
     case "settings": cfg.settings = Object.assign(cfg.settings || {}, op.values); break;
+    case "info": {
+      const p = cfg.products.find(x => x.id === op.id);
+      if (p) { Object.assign(p, op.info); delete p.info_error; }
+      break;
+    }
   }
   return normalize(cfg);
 }
@@ -600,6 +619,7 @@ async function load() {
     loadError = e;
   }
   render();
+  applyImport();
 }
 
 function queueOp(...ops) {
@@ -634,7 +654,7 @@ async function flush() {
     remoteVersion++;
     loadedAt = new Date();
     pending = pending.slice(batch.length);
-    const added = batch.filter(op => op.t === "add").map(op => op.id).filter(id => remote.config.products.some(p => p.id === id));
+    const added = batch.filter(op => op.t === "add" && !op.noFetch).map(op => op.id).filter(id => remote.config.products.some(p => p.id === id));
     if (added.length) requestInfo(added);
   } catch (e) {
     saveError = e;
@@ -1317,11 +1337,96 @@ $("emailForm").addEventListener("submit", async e => {
   }
 });
 
+/* ---------- import from the shop's page (bookmarklet) ---------- */
+
+// Runs as a bookmarklet on the shop's product page, in the viewer's own browser, so it still works while the
+// waiting room blocks GitHub's servers. Must stay self-contained: the bookmark is built from this function's source.
+// Mirrors parse_product_page in pokemon_center_monitor.py.
+function shopBookmarklet(ui) {
+  const m = location.pathname.match(/\/(\d{6,16})\.html/) || location.search.match(/[?&]pid=(\d{6,16})/);
+  const avail = document.getElementById("availability");
+  if (location.hostname !== "www.pokemoncenter-online.com" || !m || !avail) {
+    alert("請在寶可夢中心官網的商品頁使用這個書籤");
+    return;
+  }
+  const text = sel => {
+    const el = document.querySelector(sel), n = el && el.firstChild;
+    return n && n.nodeType === 3 ? n.nodeValue.trim() : "";
+  };
+  const cart = document.querySelector(".add-to-cart-button");
+  const soldOut = avail.value !== "true" || text("p.stock > span") === "品切れ" || !!(cart && cart.classList.contains("default"));
+  const price = text("p.price .txt");
+  const og = document.querySelector('meta[property="og:image"]');
+  const info = {
+    id: m[1], title_ja: text("h1.lead"), price: price ? "¥" + price : "", limit: text("p.limit"),
+    image: og ? og.content : "", stock: soldOut ? "sold_out" : "in_stock",
+  };
+  window.open(ui + "#import=" + encodeURIComponent(JSON.stringify(info)), "pcm-ui");
+}
+
+const IMPORT_PREFIX = "#import=";
+let importQueue = null;  // { id, info } from the bookmarklet, waiting for the config to load
+
+// Anyone can craft an #import link, so every field is checked and nothing is saved without a confirm().
+function cleanImport(raw) {
+  if (!raw || typeof raw !== "object" || !/^\d{6,16}$/.test(raw.id)) return null;
+  const str = (v, max) => typeof v === "string" ? v.trim().slice(0, max) : "";
+  const info = {
+    title_ja: str(raw.title_ja, 200),
+    price: /^¥[\d,]{1,12}$/.test(raw.price) ? raw.price : "",
+    limit: str(raw.limit, 100),
+    image: typeof raw.image === "string" && raw.image.startsWith(SITE + "/") ? raw.image : "",
+    stock: raw.stock === "in_stock" ? "in_stock" : "sold_out",
+  };
+  return info.title_ja ? { id: raw.id, info } : null;
+}
+
+function readImport() {
+  if (!location.hash.startsWith(IMPORT_PREFIX)) return;
+  let raw = null;
+  try { raw = JSON.parse(decodeURIComponent(location.hash.slice(IMPORT_PREFIX.length))); } catch (e) {}
+  history.replaceState(null, "", location.pathname + location.search);  // a reload must not import again
+  importQueue = cleanImport(raw);
+  if (!importQueue) { toast("看不懂匯入的資料，請在官網商品頁重新點書籤"); return; }
+  applyImport();
+}
+
+function applyImport() {
+  if (!importQueue || !remote) return;
+  const { id, info } = importQueue;
+  importQueue = null;
+  if (!canEdit()) { toast("唯讀模式不能匯入，請先在「GitHub 連線設定」貼上 token"); return; }
+  const cfg = view(), p = cfg.products.find(x => x.id === id);
+  const to = Object.keys(cfg.recipients).filter(a => addTo.has(a));
+  const detail = `${info.title_ja}\n${[info.price, info.limit, info.stock === "in_stock" ? "有庫存" : "品切れ"].filter(Boolean).join("・")}`;
+  const question = p
+    ? `更新「${labelOf(p)}」的官網資訊？`
+    : `新增到商品庫？${to.length ? `會通知 ${to.map(short).join("、")}` : "還沒選通知對象，先放在商品庫"}`;
+  if (!confirm(`${question}\n\n${detail}`)) return;
+  info.info_updated = new Date().toISOString().replace(/\.\d+Z$/, "Z");
+  const ops = [];
+  if (!p) ops.push({ t: "add", id, label: "", to, noFetch: true, desc: `新增 ${info.title_ja}` });
+  ops.push({ t: "info", id, info, desc: `匯入 ${p ? labelOf(p) : info.title_ja} 官網資訊` });
+  fetching.delete(id);
+  queueOp(...ops);
+  toast(p ? `已更新 ${labelOf(p)} 的官網資訊` : `已新增 ${info.title_ja}`);
+  flashCard(id);
+}
+
+const bookmarklet = "javascript:" + encodeURIComponent(`(${shopBookmarklet})(${JSON.stringify(location.href.replace(/[?#].*$/, ""))})`);
+$("bmLink").href = bookmarklet;
+$("bmLink").addEventListener("click", e => { e.preventDefault(); toast("把這個按鈕拖到書籤列，再到官網商品頁點書籤"); });
+$("bmCopy").addEventListener("click", () => {
+  navigator.clipboard.writeText(bookmarklet).then(() => toast("已複製書籤程式碼"), () => toast("無法複製，請改用電腦把按鈕拖到書籤列"));
+});
+window.addEventListener("hashchange", readImport);
+
 /* ---------- start ---------- */
 
 window.addEventListener("beforeunload", e => { if (pending.length || saving) { e.preventDefault(); e.returnValue = ""; } });
 document.addEventListener("visibilitychange", () => {
   if (document.visibilityState === "visible" && remote && !pending.length && !saving && !fetching.size) load();
 });
+readImport();
 load();
 </script>
