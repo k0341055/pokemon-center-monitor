@@ -380,7 +380,8 @@ def parse_product_page(product: dict, page_html: str, final_url: str) -> dict:
         "reason": "",
     }
 
-    if "queue-it" in urlparse(final_url).netloc:
+    final_host = urlparse(final_url).netloc
+    if "queue-it" in final_host or final_host == _WAITING_ROOM_HOST:
         result["status"] = "queue"
         result["reason"] = f"導向排隊頁 {final_url}"
         return result

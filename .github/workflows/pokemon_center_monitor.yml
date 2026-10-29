@@ -27,7 +27,9 @@ permissions:
 
 jobs:
   monitor:
-    runs-on: ubuntu-latest
+    # 官網等候室會擋 GitHub 的雲端 IP，改在自己的 Mac 上跑（self-hosted runner，label pokemon-mac）。
+    # 要改回 GitHub 主機：repo 的 Actions variables 新增 RUNNER_LABEL＝ubuntu-latest
+    runs-on: ${{ vars.RUNNER_LABEL || 'pokemon-mac' }}
     timeout-minutes: 15
 
     steps:
@@ -35,18 +37,26 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Set up Python 3.11
+        if: runner.environment == 'github-hosted'
         uses: actions/setup-python@v5
         with:
           python-version: '3.11'
 
       - name: Cache pip packages
+        if: runner.environment == 'github-hosted'
         uses: actions/cache@v4
         with:
           path: ~/.cache/pip
           key: pip-pokemon-${{ runner.os }}-${{ hashFiles('requirements.txt') }}
 
+      # 自架 runner 用本機的 python3（需 3.10 以上），venv 跨 run 保留，套件裝好後幾秒就跑完
       - name: Install Python dependencies
-        run: pip install -r requirements.txt
+        run: |
+          python3 -c 'import sys; assert sys.version_info >= (3, 10), f"需要 Python 3.10 以上，目前是 {sys.version}"'
+          venv="$HOME/.cache/pokemon-center-monitor-venv"
+          python3 -m venv "$venv"
+          "$venv/bin/pip" install -q --disable-pip-version-check -r requirements.txt
+          echo "$venv/bin" >> "$GITHUB_PATH"
 
       - name: Restore notified state
         uses: actions/cache@v4
