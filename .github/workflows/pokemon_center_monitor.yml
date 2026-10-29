@@ -76,4 +76,6 @@ jobs:
           SEND_TEST_EMAIL:  ${{ inputs.send_test_email }}
           STATE_FILE:       'seen_products.json'
           GITHUB_TOKEN:     ${{ github.token }}
+          # UI 新增的收件人存成 Secret RECIPIENT_N（名稱不固定），整包傳入後程式只取 RECIPIENT_N
+          SECRETS_JSON:     ${{ toJSON(secrets) }}
         run: python pokemon_center_monitor.py

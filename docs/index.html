@@ -115,7 +115,7 @@ h1 { font-size: clamp(30px, 8vw, 44px); font-weight: 900; letter-spacing: .02em;
 .connect label { font-weight: 700; font-size: 14px; }
 .row { display: flex; gap: 8px; flex-wrap: wrap; }
 .row input { flex: 1 1 220px; min-width: 0; }
-input[type="text"], input[type="password"], input:not([type]) {
+input[type="text"], input[type="password"], input[type="email"], input:not([type]) {
   border: 1.5px solid var(--rule); background: var(--surface); border-radius: 10px; padding: 8px 12px; font-size: 15px; min-width: 0;
 }
 .howto { margin: 0; padding-left: 20px; display: grid; gap: 4px; font-size: 13.5px; color: var(--muted); }
@@ -257,6 +257,12 @@ input:disabled { opacity: .55; }
 }
 .add-rcpt:hover { color: var(--ink); border-color: var(--muted); }
 .map-note { font-size: 12.5px; color: var(--muted); padding-inline: 4px; }
+.map-note.warn { color: var(--warn-ink); background: var(--warn-bg); padding: 8px 10px; border-radius: 10px; }
+.rcpt-form { background: var(--surface); border: 1px solid var(--rule); border-radius: var(--radius); padding: 14px; display: grid; gap: 10px; }
+.rcpt-form .field input { width: 100%; }
+.rcpt-form .field > span { font-size: 14px; font-weight: 700; color: var(--ink); }
+.mail-ok { color: var(--got); }
+.mail-warn { color: var(--warn-ink); font-weight: 700; }
 
 /* ---------- drag ghost, toast, footer ---------- */
 .dragging, .dragging * { cursor: grabbing !important; user-select: none; -webkit-user-select: none; }
@@ -329,7 +335,7 @@ input:disabled { opacity: .55; }
       <ol class="howto">
         <li>到 <a href="https://github.com/settings/personal-access-tokens/new" target="_blank" rel="noopener">GitHub → Fine-grained personal access tokens</a> 建立新 token</li>
         <li>Repository access 選 <b>Only select repositories</b> → <b>pokemon-center-monitor</b></li>
-        <li>Repository permissions：<b>Contents</b> 和 <b>Actions</b> 都設為 <b>Read and write</b></li>
+        <li>Repository permissions：<b>Contents</b>、<b>Actions</b>、<b>Secrets</b> 都設為 <b>Read and write</b>（Secrets 用來新增收件人信箱）</li>
         <li>產生後貼到上面。token 只會送給 GitHub API，不會寫進頁面或 repo</li>
       </ol>
     </form>
@@ -377,8 +383,14 @@ input:disabled { opacity: .55; }
   </section>
   <aside class="rcpts" aria-label="通知對象">
     <div id="rcptList" style="display: grid; gap: 12px"></div>
+    <form class="rcpt-form edit-only" id="emailForm" autocomplete="off" hidden>
+      <label class="field"><span id="emailLabel">收件信箱</span><input id="emailInput" type="email" spellcheck="false" autocomplete="off" placeholder="name@example.com" required></label>
+      <div class="row"><button class="btn primary" type="submit" id="emailSave">加密儲存</button><button class="btn" type="button" id="emailCancel">取消</button></div>
+      <p class="hint" id="emailHint"></p>
+    </form>
     <button class="add-rcpt edit-only" id="addRcpt" type="button">＋ 新增通知對象</button>
-    <p class="map-note">Recipient_N ＝ GitHub Secret <code>GMAIL_RECIPIENTS</code> 的第 N 個信箱（逗號分隔的順序）。信箱只存在 Secrets，這個頁面和 repo 都看不到。</p>
+    <p class="map-note warn edit-only" id="secretsWarn" hidden>目前的 token 沒有 Secrets 權限，無法新增收件人或檢查信箱設定。到 GitHub 編輯 token，把 <b>Secrets</b> 設為 Read and write。</p>
+    <p class="map-note">每位通知對象的信箱存在 GitHub Secret <code>RECIPIENT_N</code>（舊設定則是 <code>GMAIL_RECIPIENTS</code> 第 N 個），在瀏覽器加密後才送出，這個頁面和 repo 都只顯示代稱。</p>
   </aside>
 </main>
 
@@ -388,7 +400,7 @@ input:disabled { opacity: .55; }
     <li><b>只通知負責的人：</b>補貨時只寄信給商品所在的通知對象。同一件商品可以同時分給好幾位。</li>
     <li><b>未分配＝不監控：</b>沒有分給任何人的商品會留在商品庫，但不會去官網檢查。</li>
     <li><b>何時生效：</b>每次修改都會直接存進 repo 的 <code>watch_config.json</code>，正在執行的監控大約 1 分鐘內套用。</li>
-    <li><b>新增通知對象：</b>新增 Recipient_3 之後，記得到 GitHub → Settings → Secrets → <code>GMAIL_RECIPIENTS</code>，把第 3 個信箱接在最後面（用逗號分隔）。</li>
+    <li><b>新增通知對象：</b>按「＋ 新增通知對象」輸入信箱，信箱會在瀏覽器用 GitHub 的公鑰加密，直接存成 Secret <code>RECIPIENT_N</code>。存好之後讀不回來，頁面只顯示代稱；要改就用 ✉ 重新輸入。</li>
     <li><b>公開頁面：</b>任何人都能看到商品清單和代稱，但沒有 token 只能看、不能改。</li>
   </ul>
   <p class="hint" id="footMeta"></p>
@@ -396,6 +408,7 @@ input:disabled { opacity: .55; }
 
 <div class="toast" id="toast" role="status" aria-live="polite" hidden></div>
 
+<script src="vendor/nacl-fast.min.js"></script>
 <script>
 "use strict";
 
@@ -419,6 +432,7 @@ const ICON = {
   trash: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16M9 7V4h6v3M6 7l1 13h10l1-13M10 11v6M14 11v6"/></svg>',
   edit: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 20h4L19 9l-4-4L4 16v4zM13.5 6.5l4 4"/></svg>',
   close: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg>',
+  mail: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 6h16v12H4zM4 7l8 6 8-6"/></svg>',
 };
 
 const store = {
@@ -434,6 +448,7 @@ let pending = [];         // edits not yet saved; the page always shows remote +
 let saving = false, saveTimer = 0, saveError = null, loadError = null, loadedAt = null;
 const fetching = new Map(); // product id → { at, prev }: waiting for the Actions run to fill in shop info
 let pollTimer = 0;
+let secretNames = null;     // names of the repo's Actions secrets (values can never be read back)
 let drag = null, editing = null, needRender = false, suppressUntil = 0, toastTimer = 0;
 let addTo;
 try { addTo = new Set(JSON.parse(store.get(ADD_TO_KEY) || '["Recipient_1"]')); } catch (e) { addTo = new Set(["Recipient_1"]); }
@@ -505,15 +520,14 @@ function commitMessage(ops) {
 
 /* ---------- GitHub API ---------- */
 
-function b64decode(s) {
-  return new TextDecoder().decode(Uint8Array.from(atob(s.replace(/\s/g, "")), c => c.charCodeAt(0)));
-}
-function b64encode(str) {
-  const bytes = new TextEncoder().encode(str);
+function bytesToB64(bytes) {
   let bin = "";
   for (let i = 0; i < bytes.length; i += 0x8000) bin += String.fromCharCode.apply(null, bytes.subarray(i, i + 0x8000));
   return btoa(bin);
 }
+const b64ToBytes = s => Uint8Array.from(atob(s.replace(/\s/g, "")), c => c.charCodeAt(0));
+const b64encode = str => bytesToB64(new TextEncoder().encode(str));
+const b64decode = s => new TextDecoder().decode(b64ToBytes(s));
 
 async function gh(path, { method = "GET", body, auth = true } = {}) {
   const headers = { Accept: "application/vnd.github+json" };
@@ -558,6 +572,7 @@ function errText(e, what) {
   if (e.status === 401) return "token 無效或已過期，請重新設定";
   if (e.status === 403 && /rate limit/i.test(e.message)) return "GitHub API 次數暫時用完，請稍後再試";
   if (what === "read" && e.status === 404) return "repo 裡找不到 watch_config.json";
+  if (what === "secret" && (e.status === 403 || e.status === 404)) return "token 沒有 Secrets 的 Read and write 權限";
   if (e.status === 403 || e.status === 404)
     return what === "dispatch" ? "token 沒有 Actions 的 Read and write 權限，無法自動抓商品資訊" : "token 沒有這個 repo 的 Contents 寫入權限";
   if (e.status === 409) return "設定檔一直被其他地方修改，請再試一次";
@@ -572,6 +587,7 @@ async function load() {
     remoteVersion++;
     loadError = null;
     loadedAt = new Date();
+    if (token && !tokenInvalid) await loadSecretNames();
   } catch (e) {
     loadError = e;
   }
@@ -731,11 +747,11 @@ function rcptHTML(a, cfg, edit) {
       <button type="button" class="icon sm edit-only" data-unassign aria-label="從 ${a} 移除 ${esc(labelOf(p))}">${ICON.close}</button>
     </li>`;
   }).join("");
-  const n = aliasNum(a);
   return `<section class="zone rcpt" data-zone="${a}" style="--c:${colorOf(a)}" aria-label="${a}">
     <div class="zone-head">
       <span class="ring">${short(a)}</span>
-      <div><h2>${a}</h2><p class="sub">GMAIL_RECIPIENTS 第 ${n} 個信箱・${ids.length} 件</p></div>
+      <div><h2>${a}</h2><p class="sub">${ids.length} 件商品${mailStatus(a)}</p></div>
+      <button type="button" class="icon edit-only" data-set-email="${a}" aria-label="更換 ${a} 的信箱">${ICON.mail}</button>
       <button type="button" class="icon danger edit-only" data-remove-rcpt="${a}" aria-label="移除 ${a}">${ICON.trash}</button>
     </div>
     <ul class="chips">${chips}</ul>
@@ -765,6 +781,7 @@ function render() {
   const edit = canEdit();
   document.body.classList.toggle("readonly", !edit);
   $("readonlyNote").hidden = edit || !remote;
+  $("secretsWarn").hidden = !edit || !!secretNames;
   if (!remote) {
     $("poolList").innerHTML = `<li class="empty">${loadError ? "讀取設定失敗，按上面的「重試」" : "讀取中…"}</li>`;
     return;
@@ -980,13 +997,17 @@ document.addEventListener("click", e => {
   } else if ("unassign" in btn.dataset) {
     queueOp(opUnassign(id, card.dataset.from));
   } else if (btn.dataset.removeRcpt) {
-    const a = btn.dataset.removeRcpt, n = cfg.recipients[a].length;
-    if (!n || confirm(`移除 ${a}？\n它的 ${n} 件商品之後不會再寄信給 GMAIL_RECIPIENTS 第 ${aliasNum(a)} 個信箱。`))
-      queueOp({ t: "removeRcpt", alias: a, desc: `移除 ${a}` });
+    const a = btn.dataset.removeRcpt, n = cfg.recipients[a].length, num = aliasNum(a);
+    if (!confirm(`移除 ${a}？${n ? `\n它的 ${n} 件商品之後不會再通知這個信箱。` : ""}\n也會刪除 GitHub Secret RECIPIENT_${num}（如果有）。`)) return;
+    queueOp({ t: "removeRcpt", alias: a, desc: `移除 ${a}` });
+    if ($("emailForm").dataset.alias === a) closeEmailForm();
+    deleteRecipientSecret(num)
+      .then(() => { if (secretNames) secretNames.delete(`RECIPIENT_${num}`); render(); })
+      .catch(err => toast(`${a} 已移除，但刪除 Secret RECIPIENT_${num} 失敗：${errText(err, "secret")}`));
+  } else if (btn.dataset.setEmail) {
+    openEmailForm(btn.dataset.setEmail, "change");
   } else if (btn.id === "addRcpt") {
-    const a = nextAlias(cfg);
-    queueOp({ t: "addRcpt", alias: a, desc: `新增 ${a}` });
-    if (aliasNum(a) > 2) toast(`已新增 ${a}，記得把第 ${aliasNum(a)} 個信箱加到 GMAIL_RECIPIENTS 最後面`);
+    openEmailForm(nextAlias(cfg), "new");
   } else if (btn.id === "refreshAll") {
     requestInfo(cfg.products.map(p => p.id), true);
     toast("已請 GitHub Actions 重新抓取全部商品，約 1 分鐘");
@@ -1137,6 +1158,149 @@ function endDrag(commit) {
   if (action && action.ok) { queueOp(...action.ops); toast(action.hint); }
   else if (needRender) render();
 }
+
+/* ---------- recipient emails → GitHub Secrets ---------- */
+
+// Secrets must be sealed with the repo's public key before upload (libsodium sealed box):
+// ephemeral X25519 key pair, nonce = BLAKE2b-192(ephemeral pk ‖ repo pk), XSalsa20-Poly1305 box via tweetnacl.
+// BLAKE2b (RFC 7693) is written out here because tweetnacl lacks it; it only hashes 64 bytes, so BigInt is fine.
+function blake2b(input, outlen) {
+  const M = (1n << 64n) - 1n;
+  const IV = [0x6a09e667f3bcc908n, 0xbb67ae8584caa73bn, 0x3c6ef372fe94f82bn, 0xa54ff53a5f1d36f1n,
+              0x510e527fade682d1n, 0x9b05688c2b3e6c1fn, 0x1f83d9abfb41bd6bn, 0x5be0cd19137e2179n];
+  const SIGMA = [
+    [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15], [14, 10, 4, 8, 9, 15, 13, 6, 1, 12, 0, 2, 11, 7, 5, 3],
+    [11, 8, 12, 0, 5, 2, 15, 13, 10, 14, 3, 6, 7, 1, 9, 4], [7, 9, 3, 1, 13, 12, 11, 14, 2, 6, 5, 10, 4, 0, 15, 8],
+    [9, 0, 5, 7, 2, 4, 10, 15, 14, 1, 11, 12, 6, 8, 3, 13], [2, 12, 6, 10, 0, 11, 8, 3, 4, 13, 7, 5, 15, 14, 1, 9],
+    [12, 5, 1, 15, 14, 13, 4, 10, 0, 7, 6, 3, 9, 2, 8, 11], [13, 11, 7, 14, 12, 1, 3, 9, 5, 0, 15, 4, 8, 6, 2, 10],
+    [6, 15, 14, 9, 11, 3, 0, 8, 12, 2, 13, 7, 1, 4, 10, 5], [10, 2, 8, 4, 7, 6, 1, 5, 15, 11, 9, 14, 3, 12, 13, 0],
+  ];
+  const rotr = (x, n) => ((x >> BigInt(n)) | (x << BigInt(64 - n))) & M;
+  const h = IV.slice();
+  h[0] ^= 0x01010000n ^ BigInt(outlen);
+  const blocks = Math.max(1, Math.ceil(input.length / 128));
+  for (let b = 0; b < blocks; b++) {
+    const block = new Uint8Array(128);
+    block.set(input.subarray(b * 128, b * 128 + 128));
+    const m = [];
+    for (let i = 0; i < 16; i++) {
+      let w = 0n;
+      for (let j = 7; j >= 0; j--) w = (w << 8n) | BigInt(block[i * 8 + j]);
+      m.push(w);
+    }
+    const last = b === blocks - 1;
+    const v = [...h, ...IV];
+    v[12] ^= BigInt(last ? input.length : (b + 1) * 128);
+    if (last) v[14] ^= M;
+    const G = (a, bb, c, d, x, y) => {
+      v[a] = (v[a] + v[bb] + x) & M; v[d] = rotr(v[d] ^ v[a], 32);
+      v[c] = (v[c] + v[d]) & M;      v[bb] = rotr(v[bb] ^ v[c], 24);
+      v[a] = (v[a] + v[bb] + y) & M; v[d] = rotr(v[d] ^ v[a], 16);
+      v[c] = (v[c] + v[d]) & M;      v[bb] = rotr(v[bb] ^ v[c], 63);
+    };
+    for (let r = 0; r < 12; r++) {
+      const s = SIGMA[r % 10];
+      G(0, 4, 8, 12, m[s[0]], m[s[1]]);   G(1, 5, 9, 13, m[s[2]], m[s[3]]);
+      G(2, 6, 10, 14, m[s[4]], m[s[5]]);  G(3, 7, 11, 15, m[s[6]], m[s[7]]);
+      G(0, 5, 10, 15, m[s[8]], m[s[9]]);  G(1, 6, 11, 12, m[s[10]], m[s[11]]);
+      G(2, 7, 8, 13, m[s[12]], m[s[13]]); G(3, 4, 9, 14, m[s[14]], m[s[15]]);
+    }
+    for (let i = 0; i < 8; i++) h[i] ^= v[i] ^ v[i + 8];
+  }
+  const out = new Uint8Array(outlen);
+  for (let i = 0; i < outlen; i++) out[i] = Number((h[i >> 3] >> BigInt(8 * (i & 7))) & 0xffn);
+  return out;
+}
+
+function sealedBox(message, publicKey) {
+  const eph = nacl.box.keyPair();
+  const both = new Uint8Array(64);
+  both.set(eph.publicKey);
+  both.set(publicKey, 32);
+  const boxed = nacl.box(message, blake2b(both, 24), publicKey, eph.secretKey);
+  const out = new Uint8Array(32 + boxed.length);
+  out.set(eph.publicKey);
+  out.set(boxed, 32);
+  return out;
+}
+
+async function putRecipientSecret(n, email) {
+  const { key_id, key } = await gh(`/repos/${OWNER}/${REPO}/actions/secrets/public-key`);
+  const sealed = sealedBox(new TextEncoder().encode(email), b64ToBytes(key));
+  await gh(`/repos/${OWNER}/${REPO}/actions/secrets/RECIPIENT_${n}`, { method: "PUT", body: { encrypted_value: bytesToB64(sealed), key_id } });
+}
+
+async function deleteRecipientSecret(n) {
+  try {
+    await gh(`/repos/${OWNER}/${REPO}/actions/secrets/RECIPIENT_${n}`, { method: "DELETE" });
+  } catch (e) {
+    if (e.status !== 404) throw e;
+  }
+}
+
+async function loadSecretNames() {
+  try {
+    const data = await gh(`/repos/${OWNER}/${REPO}/actions/secrets?per_page=100`);
+    secretNames = new Set(data.secrets.map(x => x.name));
+  } catch (e) {
+    secretNames = null;
+  }
+}
+
+function mailStatus(a) {
+  if (!canEdit() || !secretNames) return "";
+  const n = aliasNum(a);
+  if (secretNames.has(`RECIPIENT_${n}`)) return `<span class="mail-ok">・信箱已設定</span>`;
+  if (secretNames.has("GMAIL_RECIPIENTS")) return `・信箱：GMAIL_RECIPIENTS 第 ${n} 個`;
+  return `<span class="mail-warn">・尚未設定信箱</span>`;
+}
+
+function openEmailForm(alias, mode) {
+  const form = $("emailForm"), n = aliasNum(alias);
+  form.dataset.alias = alias;
+  form.dataset.mode = mode;
+  $("emailLabel").textContent = mode === "new" ? `新增 ${alias} 的收件信箱` : `更換 ${alias} 的收件信箱`;
+  $("emailHint").textContent = `信箱會在這個瀏覽器用 GitHub 的公鑰加密，直接存成 Secret RECIPIENT_${n}。存好之後誰都讀不回來（包括這個頁面），畫面上只會顯示 ${alias}。`;
+  $("emailInput").value = "";
+  form.hidden = false;
+  $("addRcpt").hidden = true;
+  form.scrollIntoView({ block: "nearest", behavior: "smooth" });
+  $("emailInput").focus();
+}
+
+function closeEmailForm() {
+  const form = $("emailForm");
+  form.hidden = true;
+  delete form.dataset.alias;
+  $("emailInput").value = "";
+  $("addRcpt").hidden = false;
+}
+
+$("emailCancel").addEventListener("click", closeEmailForm);
+$("emailForm").addEventListener("submit", async e => {
+  e.preventDefault();
+  const form = $("emailForm"), save = $("emailSave");
+  if (!canEdit() || save.disabled) return;
+  const mode = form.dataset.mode;
+  const alias = mode === "new" ? nextAlias(view()) : form.dataset.alias;
+  const email = $("emailInput").value.trim();
+  if (!/^[^\s@,;]+@[^\s@,;]+\.[^\s@,;]+$/.test(email)) { toast("信箱格式不對"); return; }
+  save.disabled = true;
+  save.textContent = "加密儲存中…";
+  try {
+    await putRecipientSecret(aliasNum(alias), email);
+    if (secretNames) secretNames.add(`RECIPIENT_${aliasNum(alias)}`);
+    closeEmailForm();
+    if (mode === "new") queueOp({ t: "addRcpt", alias, desc: `新增 ${alias}` });
+    else render();
+    toast(mode === "new" ? `已新增 ${alias}，信箱已加密存進 GitHub Secrets` : `已更新 ${alias} 的信箱`);
+  } catch (err) {
+    toast(errText(err, "secret"));
+  } finally {
+    save.disabled = false;
+    save.textContent = "加密儲存";
+  }
+});
 
 /* ---------- start ---------- */
 

@@ -42,7 +42,8 @@ TW_TZ = timezone(timedelta(hours=8))  # 台灣時區 UTC+8
 
 GMAIL_SENDER = os.environ.get("GMAIL_SENDER", "")
 GMAIL_PASSWORD = os.environ.get("GMAIL_PASSWORD", "")
-# 第 N 個信箱 = watch_config.json 的 Recipient_N（UI 網頁公開，只用代稱、不放信箱）
+# 收件人在 watch_config.json / UI 網頁只用代稱 Recipient_N（頁面公開，不放信箱）。
+# Recipient_N 的信箱：Secret RECIPIENT_N（UI 新增收件人時寫入）優先，否則用 GMAIL_RECIPIENTS 第 N 個（舊設定）
 GMAIL_RECIPIENTS = [
     addr.strip()
     for addr in os.environ.get("GMAIL_RECIPIENTS", "").split(",")
@@ -54,6 +55,7 @@ WATCH_PRODUCTS: list[dict] = []                 # 商品庫：{"id": 13 碼 JAN,
 RECIPIENT_PRODUCTS: dict[str, list[str]] = {}   # Recipient_N → 要通知的商品 id
 
 _RECIPIENT_RE = re.compile(r"Recipient_([1-9]\d*)")
+_RECIPIENT_SECRET_RE = re.compile(r"RECIPIENT_([1-9]\d*)")
 
 # ── 監控參數（watch_config.json 的 settings，可在 UI 調整）──────────
 DEFAULT_SETTINGS = {
@@ -143,14 +145,50 @@ def _first(pattern: re.Pattern, text: str) -> str:
     return html.unescape(m.group(1)).strip() if m else ""
 
 
+def _load_recipient_secrets() -> dict[int, str]:
+    """
+    UI 網頁新增的收件人存成 GitHub Secret RECIPIENT_N（瀏覽器加密後寫入，無法讀回）。
+    名稱不固定，Actions 以 SECRETS_JSON=${{ toJSON(secrets) }} 整包傳入，這裡只取 RECIPIENT_N；
+    本機執行可直接設環境變數 RECIPIENT_N。
+    """
+    sources = []
+    try:
+        sources.append(json.loads(os.environ.get("SECRETS_JSON") or "{}"))
+    except ValueError:
+        log.warning("SECRETS_JSON 不是合法 JSON，略過")
+    sources.append(os.environ)
+
+    found = {}
+    for source in sources:
+        for key, value in source.items():
+            m = _RECIPIENT_SECRET_RE.fullmatch(key)
+            if m and isinstance(value, str) and value.strip():
+                found.setdefault(int(m.group(1)), value.strip())
+    return found
+
+
+RECIPIENT_EMAILS = _load_recipient_secrets()
+
+
 def _alias_num(alias: str) -> int:
     return int(_RECIPIENT_RE.fullmatch(alias).group(1))
 
 
 def recipient_email(alias: str) -> str | None:
-    """Recipient_N → GMAIL_RECIPIENTS 第 N 個信箱；超出範圍回傳 None。"""
+    """Recipient_N → Secret RECIPIENT_N，沒有則用 GMAIL_RECIPIENTS 第 N 個；都沒有回傳 None。"""
     n = _alias_num(alias)
+    if n in RECIPIENT_EMAILS:
+        return RECIPIENT_EMAILS[n]
     return GMAIL_RECIPIENTS[n - 1] if n <= len(GMAIL_RECIPIENTS) else None
+
+
+def known_recipient_numbers() -> list[int]:
+    """有設定信箱的 N（Secret RECIPIENT_N 或 GMAIL_RECIPIENTS 第 N 個）。"""
+    return sorted(set(RECIPIENT_EMAILS) | set(range(1, len(GMAIL_RECIPIENTS) + 1)))
+
+
+def _email_source(n: int) -> str:
+    return f"RECIPIENT_{n}" if n in RECIPIENT_EMAILS else f"GMAIL_RECIPIENTS 第 {n} 個"
 
 
 # ─────────────────────────────────────────────
@@ -272,10 +310,11 @@ def active_routes() -> dict[str, list[str]]:
 
 def warn_missing_recipients():
     for alias, ids in RECIPIENT_PRODUCTS.items():
+        n = _alias_num(alias)
         if ids and not recipient_email(alias):
             log.warning(
-                f"{alias} 在 GMAIL_RECIPIENTS 找不到第 {_alias_num(alias)} 個信箱"
-                f"（目前只有 {len(GMAIL_RECIPIENTS)} 個），它的 {len(ids)} 件商品不會通知"
+                f"{alias} 找不到信箱（沒有 Secret RECIPIENT_{n}，GMAIL_RECIPIENTS 也只有 {len(GMAIL_RECIPIENTS)} 個），"
+                f"它的 {len(ids)} 件商品不會通知；請在 UI 網頁設定 {alias} 的信箱"
             )
 
 
@@ -509,15 +548,16 @@ def notify_queue(alias: str, products: list) -> bool:
 
 
 def send_test_email() -> bool:
-    """測試信：GMAIL_RECIPIENTS 每個信箱各寄一封，列出它對應的 Recipient_N 與商品（不抓取商品頁）。"""
+    """測試信：每個有設定的信箱各寄一封，列出它對應的 Recipient_N 與商品（不抓取商品頁）。"""
     labels = {p["id"]: p["label"] for p in WATCH_PRODUCTS}
     all_ok = True
-    for n, email in enumerate(GMAIL_RECIPIENTS, 1):
+    for n in known_recipient_numbers():
         alias = f"Recipient_{n}"
+        email = recipient_email(alias)
         ids = RECIPIENT_PRODUCTS.get(alias, [])
         lines = [
             "這是 Pokémon Center 補貨偵測器的測試信，收到代表 Gmail 寄信設定正常。",
-            f"你的通知代稱：{alias}（GMAIL_RECIPIENTS 第 {n} 個信箱）",
+            f"你的通知代稱：{alias}（信箱來源：{_email_source(n)}）",
             f"寄送時間：{datetime.now(TW_TZ).strftime('%Y-%m-%d %H:%M:%S')}（台灣時間）",
             "",
             f"會通知你的商品（{len(ids)} 件）：" if ids else "目前沒有分配給你的商品，補貨時不會收到通知。",
@@ -602,10 +642,13 @@ def check_once() -> bool:
 
 
 def main():
-    missing = [k for k in ("GMAIL_SENDER", "GMAIL_PASSWORD", "GMAIL_RECIPIENTS") if not os.environ.get(k, "").strip()]
+    missing = [k for k in ("GMAIL_SENDER", "GMAIL_PASSWORD") if not os.environ.get(k, "").strip()]
     if missing:
         raise SystemExit(f"缺少環境變數：{', '.join(missing)}")
+    if not known_recipient_numbers():
+        raise SystemExit("沒有任何收件人：請在 UI 網頁新增收件人，或設定 GMAIL_RECIPIENTS")
     load_config()
+    log.info("收件人信箱來源：" + "、".join(f"Recipient_{n}＝{_email_source(n)}" for n in known_recipient_numbers()))
 
     if SEND_TEST_EMAIL:
         log.info("寄送測試信（不執行偵測）")

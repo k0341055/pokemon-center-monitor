@@ -12,19 +12,21 @@
 | 分配通知對象 | 把商品卡拖到 Recipient_N 底下（手機用卡片左側的 ⋮⋮ 拖拉），或直接點卡片上的 R1、R2 切換 |
 | 移除／移動 | 從某個對象拖回商品庫＝移除；拖到另一個對象＝移動（按住 Option／Alt＝複製） |
 | 刪除商品、改中文名稱、重新抓取價格 | 商品卡右側按鈕 |
+| 新增／更換／移除收件人 | 「＋ 新增通知對象」輸入信箱；✉ 更換信箱；🗑 移除（同時刪除對應的 Secret）。頁面只顯示代稱 |
 | 監控設定 | 監控開關、每次執行輪數、每輪間隔秒數、仍有庫存提醒間隔、排隊提醒開關 |
 
 每次修改都會直接 commit 到 repo 的 [`watch_config.json`](watch_config.json)；正在執行的監控每 10 輪（約 1 分鐘）重新讀取一次設定，不用等下一次 run。
 
 ### 通知對象代稱
 
-頁面公開在 GitHub Pages，所以只用代稱、不放信箱：
+頁面公開在 GitHub Pages，所以只用代稱 `Recipient_N`、不放信箱。`Recipient_N` 的信箱依序找：
 
-```
-Recipient_N ＝ GitHub Secret GMAIL_RECIPIENTS 的第 N 個信箱（逗號分隔的順序）
-```
+1. GitHub Secret **`RECIPIENT_N`**：在 UI 新增收件人或按 ✉ 更換信箱時寫入
+2. GitHub Secret **`GMAIL_RECIPIENTS`** 的第 N 個（逗號分隔，舊設定，仍然有效）
 
-例如 `GMAIL_RECIPIENTS` 是 `a@gmail.com,b@gmail.com`，`Recipient_1` 就是 `a@gmail.com`。在 UI 新增 `Recipient_3` 後，要到 Secrets 把第 3 個信箱接在 `GMAIL_RECIPIENTS` 最後面；找不到信箱的代稱會在 log 裡警告，它的商品不會通知。
+在 UI 輸入的信箱會先在瀏覽器用 repo 的公鑰加密（libsodium sealed box，GitHub 規定的 Secrets 格式），才送給 GitHub API；不會出現在頁面、`watch_config.json`、commit 或瀏覽器儲存空間，存好之後也讀不回來。頁面只會顯示「信箱已設定」或「GMAIL_RECIPIENTS 第 N 個」。
+
+找不到信箱的代稱會在 log 裡警告，它的商品不會通知。
 
 沒有分配給任何人的商品會留在商品庫，但不會去官網檢查。
 
@@ -34,9 +36,11 @@ Recipient_N ＝ GitHub Secret GMAIL_RECIPIENTS 的第 N 個信箱（逗號分隔
 
 1. GitHub → Settings → Developer settings → [Fine-grained tokens](https://github.com/settings/personal-access-tokens/new) → Generate new token
 2. Repository access：**Only select repositories** → `pokemon-center-monitor`
-3. Repository permissions：**Contents** 與 **Actions** 都設為 **Read and write**
+3. Repository permissions：**Contents**、**Actions**、**Secrets** 都設為 **Read and write**（Secrets 只用於新增／更換收件人信箱，沒給也能管理商品）
 
 token 只存在該裝置瀏覽器的 localStorage，只會送給 GitHub API。建議跟 cron-job.org 用的 token 分開建立（cron-job.org 那支只需要 Actions 權限）。
+
+加密用的 [tweetnacl-js](https://github.com/dchest/tweetnacl-js) 1.0.3 放在 `docs/vendor/`（從 npm 取得並核對 integrity），頁面不從 CDN 載入任何程式。
 
 ### 監控設定
 
@@ -105,7 +109,8 @@ Email 發送失敗時不寫入冷卻紀錄，下一輪會重試。
 |---|---|
 | `GMAIL_SENDER` | 寄件 Gmail 帳號 |
 | `GMAIL_PASSWORD` | Gmail App Password（非登入密碼） |
-| `GMAIL_RECIPIENTS` | 收件人，逗號分隔；第 N 個＝UI 上的 `Recipient_N` |
+| `RECIPIENT_N` | `Recipient_N` 的信箱，由 UI 新增收件人時寫入（不用手動建立） |
+| `GMAIL_RECIPIENTS` | 舊設定：收件人逗號分隔，第 N 個＝`Recipient_N`（沒有 `RECIPIENT_N` 時使用）。全部收件人都改用 UI 設定後可刪除 |
 
 > 設定路徑：GitHub Repo → Settings → Secrets and variables → Actions → **Secrets** 標籤 → New repository secret
 
@@ -140,7 +145,7 @@ Request Body：
 | `pokemon_center_monitor.yml` | cron-job.org | 監控本體。手動執行時可填 `check_rounds`（覆寫 UI 輪數）、`test_mode`、`send_test_email` |
 | `product_info.yml` | UI 新增商品／按「重新抓取」 | 抓商品頁資訊寫回 `watch_config.json`。手動執行時 `ids` 留空＝補齊缺資料的商品，`refresh_all` 填 `1`＝全部重新抓取 |
 
-`send_test_email` 會對 `GMAIL_RECIPIENTS` 每個信箱各寄一封測試信，信中列出它對應的 `Recipient_N` 與會通知的商品，可用來確認代稱對應正確。
+`send_test_email` 會對每個有設定的信箱各寄一封測試信，信中列出它對應的 `Recipient_N`、信箱來源（`RECIPIENT_N` 或 `GMAIL_RECIPIENTS` 第 N 個）與會通知的商品，可用來確認代稱對應正確。
 
 ### 選填環境變數
 
@@ -149,6 +154,7 @@ Request Body：
 | `CHECK_ROUNDS` | 空（用 UI 設定） | 有填時覆寫每次 run 的偵測輪數 |
 | `TEST_MODE` | 空 | 非空時信件標題加上【測試】 |
 | `SEND_TEST_EMAIL` | 空 | 非空時只寄測試信確認 Gmail 設定，不執行偵測 |
+| `SECRETS_JSON` | 空 | Actions 以 `${{ toJSON(secrets) }}` 傳入，程式只取其中的 `RECIPIENT_N`。本機可改設環境變數 `RECIPIENT_N` |
 | `CONFIG_FILE` | `watch_config.json` | 監控設定檔 |
 | `CONFIG_RELOAD_ROUNDS` | `10` | 執行中每隔幾輪從 GitHub 重新讀取設定（需要 `GITHUB_TOKEN`，Actions 中自動提供） |
 | `STATE_FILE` | `seen_products.json` | 通知冷卻狀態檔 |
