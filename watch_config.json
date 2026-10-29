@@ -161,8 +161,12 @@
     {
       "id": "4521329454269",
       "label": "聖誕皮卡丘帽吊飾",
-      "info_updated": "2026-10-29T23:32:27+08:00",
-      "info_error": "HTTP 403（https://wr.pokemoncenter-online.com/?c=pol&e=wr20261030ec&ver=v3-javascript-3.7.10&cver=245&man=pol-prd-rule-sfcc&t=https%3A%2F%2Fwww.pokemoncenter-online.com%2Fon%2Fdemandware.store%2FSites-POL-Site%2Fja_JP%2FProduct-Show%3Fpid%3D4521329454269&kupver=salesforce-2.1.0）"
+      "info_updated": "2026-10-29T23:35:28+08:00",
+      "title_ja": "ピカみみサンタ帽キーホルダー クリスマスじゅんびチュウ！",
+      "price": "¥825",
+      "limit": "お一人様 1点限り",
+      "image": "https://www.pokemoncenter-online.com/a/img/item/4521329454269/M/3b99f648dd7c8a649771c10544f1fb99b5de599ee3ccd165b4045efdef2ec3b2.jpg",
+      "stock": "sold_out"
     }
   ],
   "recipients": {

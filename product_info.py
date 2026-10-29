@@ -37,6 +37,8 @@ def _error_text(result: dict) -> str:
         return "官網排隊中，稍後再重新抓取"
     if result["reason"].startswith("HTTP 404"):
         return "找不到商品頁（HTTP 404），請確認商品編號"
+    if result["reason"].startswith("官網等候室拒絕連線"):
+        return "官網等候室擋住 GitHub 伺服器，暫時抓不到，等候室關閉後再按 ↻"
     return result["reason"] or "無法解析商品頁"
 
 

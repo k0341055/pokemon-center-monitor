@@ -85,6 +85,9 @@ _UA = (
 # Queue-it 排隊時的狀態 key（存放於各 Recipient 的 notified，與商品 id 共用冷卻機制）
 _QUEUE_KEY = "__queue__"
 
+# 官網自架網域的 Queue-it 等候室（沒排隊時會直接導回商品頁）
+_WAITING_ROOM_HOST = "wr.pokemoncenter-online.com"
+
 # 同時抓取的商品頁上限，避免商品一多就瞬間打出大量請求
 _MAX_WORKERS = 12
 
@@ -433,7 +436,12 @@ def fetch_product(product: dict) -> dict:
                     continue
                 break
 
-            if resp.status_code != 200 and "queue-it" not in urlparse(resp.url).netloc:
+            host = urlparse(resp.url).netloc
+            if resp.status_code != 200 and host == _WAITING_ROOM_HOST:
+                # 官網的 Queue-it 等候室開啟時，GitHub Actions 等雲端主機的 IP 會被直接拒絕
+                last_reason = f"官網等候室拒絕連線（HTTP {resp.status_code}），雲端主機的 IP 被擋"
+                break
+            if resp.status_code != 200 and "queue-it" not in host:
                 last_reason = f"HTTP {resp.status_code}（{resp.url}）"
                 break
 
