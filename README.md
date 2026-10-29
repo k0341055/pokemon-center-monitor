@@ -1,6 +1,6 @@
 # Pokémon Center Online 補貨偵測器
 
-監控 [ポケモンセンターオンライン](https://www.pokemoncenter-online.com/) 指定商品的庫存，一旦補貨立即透過 Gmail 通知。由 cron-job.org 每 5 分鐘觸發一次 GitHub Actions，在自己 Mac 上的 self-hosted runner 執行約 5 分鐘的監控（預設 50 輪，每輪間隔 4~6 秒）。官網的等候室會擋 GitHub 雲端主機的 IP，所以改在 Mac 上跑，見[執行環境](#執行環境mac-self-hosted-runner)。
+監控 [ポケモンセンターオンライン](https://www.pokemoncenter-online.com/) 指定商品的庫存，一旦補貨立即透過 Gmail 通知。由 cron-job.org 每 5 分鐘觸發一次 GitHub Actions，每次啟動全新 VM 執行約 5 分鐘的監控（預設 50 輪，每輪間隔 4~6 秒），runner 網路異常最多影響一個 5 分鐘窗口。
 
 監控商品、每個帳號要通知哪些商品、監控參數，都在 **UI 網頁** 上調整：<https://k0341055.github.io/pokemon-center-monitor/>
 
@@ -61,7 +61,7 @@ flowchart TD
     UI["UI 網頁（GitHub Pages）"] -->|Contents API commit| CFG[("watch_config.json\n商品・Recipient_N・監控設定")]
     UI -->|workflow_dispatch| INFO["product_info.yml\n抓日文品名・價格・圖片"]
     INFO -->|commit| CFG
-    CRON["cron-job.org\n每 5 分鐘 POST → GitHub API"] -->|workflow_dispatch| GA["pokemon_center_monitor.yml\nMac self-hosted runner（約 5 分鐘）"]
+    CRON["cron-job.org\n每 5 分鐘 POST → GitHub API"] -->|workflow_dispatch| GA["pokemon_center_monitor.yml\nubuntu VM（約 5 分鐘）"]
     CFG -.->|啟動時讀取，每 10 輪重新讀取| GA
     GA --> FETCH["每輪平行抓取已分配的商品頁\n（每商品獨立 requests Session）"]
     FETCH --> PARSE{"解析庫存"}
@@ -113,24 +113,6 @@ Email 發送失敗時不寫入冷卻紀錄，下一輪會重試。
 | `GMAIL_RECIPIENTS` | 舊設定：收件人逗號分隔，第 N 個＝`Recipient_N`（沒有 `RECIPIENT_N` 時使用）。全部收件人都改用 UI 設定後可刪除 |
 
 > 設定路徑：GitHub Repo → Settings → Secrets and variables → Actions → **Secrets** 標籤 → New repository secret
-
-### 執行環境（Mac self-hosted runner）
-
-官網開啟 Queue-it 等候室（`wr.pokemoncenter-online.com`）時，GitHub 雲端主機的 IP 會直接拿到 HTTP 403，監控和抓商品資訊都會失敗；家用網路則正常通過。所以兩個 workflow 都跑在自己 Mac 上的 self-hosted runner（label `pokemon-mac`），cron-job.org 與 UI 的觸發方式不變。
-
-安裝（Apple Silicon Mac，runner 放在 `~/actions-runner`）：
-
-1. 從 [actions/runner releases](https://github.com/actions/runner/releases) 下載 `actions-runner-osx-arm64-*.tar.gz`，核對 SHA-256 後解壓到 `~/actions-runner`
-2. 註冊（用 `gh` 產生一次性的註冊 token，不會顯示在畫面上）：
-   ```bash
-   cd ~/actions-runner && ./config.sh --unattended --url https://github.com/k0341055/pokemon-center-monitor --token "$(gh api -X POST repos/k0341055/pokemon-center-monitor/actions/runners/registration-token -q .token)" --name pokemon-mac --labels pokemon-mac
-   ```
-3. 設成登入後自動在背景執行：`./svc.sh install && ./svc.sh start`
-4. Repo → Settings → Actions → General →「Approval for running fork pull request workflows from contributors」選 **Require approval for all external contributors**：repo 是公開的，避免別人用 fork 的 PR 在你的 Mac 上執行程式
-
-需求：Python 3.10 以上的 `python3` 要在註冊 runner 時的 PATH 裡（Homebrew 的即可），Mac 要開著、不能睡眠。runner 離線時 run 會排隊等待（同時最多一個在等）。
-
-要改回 GitHub 主機：Repo → Settings → Secrets and variables → Actions → **Variables** 新增 `RUNNER_LABEL`＝`ubuntu-latest`。
 
 ### 觸發方式
 
