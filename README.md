@@ -50,7 +50,7 @@ token 只存在該裝置瀏覽器的 localStorage，只會送給 GitHub API。�
 | 每次執行輪數 | 50 | 1～150。超過 job 時限（約 13 分鐘）會自動減少 |
 | 每輪間隔秒數 | 4～6 | 2～60，在範圍內隨機 |
 | 仍有庫存提醒間隔 | 60 分鐘 | 5～1440 分鐘，同時也是排隊提醒的冷卻時間 |
-| 排隊提醒 | 開 | 官網啟用 Queue-it 排隊時是否寄信 |
+| 排隊提醒 | 開 | 官網啟用 Queue-it 排隊、或等候室擋住 GitHub 主機時是否寄信 |
 
 觸發頻率（每 5 分鐘）由 cron-job.org 決定，要到 cron-job.org 修改。頁面會依輪數與間隔估算每次執行時間，比 5 分鐘短時會提示有多少空窗。
 
@@ -69,6 +69,7 @@ flowchart TD
     PARSE -->|sold_out| RESET["清除通知紀錄\n下次補貨立即通知"]
     PARSE -->|queue| QMAIL["排隊提醒信"]
     PARSE -->|unknown| SKIP["保留紀錄，連續 3 輪全失敗 → 提早結束 run"]
+    SKIP -->|全部被等候室擋住| BMAIL["被擋滿 10 分鐘寄「監控暫停」\n恢復偵測時寄「監控恢復」"]
     COOL -->|新補貨 / 冷卻到期| MAIL["Gmail → 負責該商品的 Recipient_N"]
     MAIL --> STATE[("seen_products.json\nActions cache")]
 ```
@@ -86,7 +87,7 @@ flowchart TD
 
 HTTP 429 / 5xx 與連線逾時最多重試 3 次。
 
-**已知限制：** 官網開啟 Queue-it 等候室（`wr.pokemoncenter-online.com`）期間，GitHub Actions 的主機（Ubuntu x64／ARM、macOS、Windows 都測過）會被擋在「Restricted access」頁（HTTP 403）。這段期間監控看不到任何商品（log 顯示「官網等候室拒絕連線」，連續 3 輪失敗就提早結束該次 run），UI 新增的商品也抓不到品名與價格；等候室關閉後自動恢復，新增的商品再按 ↻ 重新抓取即可。
+**已知限制：** 官網開啟 Queue-it 等候室（`wr.pokemoncenter-online.com`）期間，GitHub Actions 的主機（Ubuntu x64／ARM、macOS、Windows 都測過）會被擋在「Restricted access」頁（HTTP 403）。這段期間監控看不到任何商品（log 每輪只顯示一行「N 件商品都被擋」，連續 3 輪就提早結束該次 run，run 頁面會出現黃色警告「官網等候室擋住 GitHub 主機」；被擋滿 10 分鐘會寄「監控暫停」信），UI 新增的商品也抓不到品名與價格；等候室關閉後自動恢復，新增的商品再按 ↻ 重新抓取即可。
 
 等候室開著時，UI「新增商品」下方的 **匯入監控** 書籤可以代替 GitHub 抓商品資訊：把按鈕拖到書籤列，在官網商品頁點一下，就會用你自己的瀏覽器讀取該頁的日文品名、價格、限購、圖片和庫存，回到 UI 確認後寫進 `watch_config.json`（商品不在商品庫就新增）。只補商品資訊，監控本身仍要等等候室關閉。
 
@@ -102,6 +103,7 @@ HTTP 429 / 5xx 與連線逾時最多重試 3 次。
 | 商品新分配給某人（且正有庫存） | 該對象立即收到通知 |
 | `unknown` / `queue` | 保留通知紀錄（避免暫時性錯誤造成重複通知） |
 | 官網啟用排隊 | 寄「排隊中」提醒（套用同一冷卻時間，可在 UI 關閉），請手動進入排隊確認 |
+| 官網等候室擋住 GitHub 主機 | 連續被擋滿 10 分鐘寄一次「監控暫停」（列出該對象的商品，請自己到官網確認），之後第一次正常偵測時寄「監控恢復」；與排隊提醒共用 UI 開關 |
 
 Email 發送失敗時不寫入冷卻紀錄，下一輪會重試。
 

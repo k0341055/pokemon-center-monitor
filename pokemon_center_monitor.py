@@ -4,6 +4,7 @@ pokemoncenter-online.com 補貨偵測器
 - 偵測：requests 平行抓取商品頁，解析 #availability 與「品切れ」標記，每輪約 1 秒
 - 通知：依 Recipient_N 分別寄信，補貨立即通知、仍有庫存每隔冷卻時間（預設 1 小時）提醒一次；確認售完後重置，下次補貨再立即通知
 - 排隊：偵測到 Queue-it 排隊頁（無法判斷庫存）時另發提醒信，同樣套用冷卻時間
+- 等候室：官網等候室擋住 GitHub 主機超過 10 分鐘時寄一封「監控暫停」，恢復偵測時再寄「監控恢復」
 """
 
 import html
@@ -64,7 +65,7 @@ DEFAULT_SETTINGS = {
     "interval_min": 4,        # 每輪間隔秒數，在 min～max 之間隨機
     "interval_max": 6,
     "cooldown_minutes": 60,   # 仍有庫存／排隊中時多久再提醒一次
-    "queue_alert": True,      # 官網啟用 Queue-it 排隊時是否寄提醒信
+    "queue_alert": True,      # 官網啟用 Queue-it 排隊、或等候室擋住 GitHub 主機時是否寄提醒信
 }
 _SETTING_RANGES = {
     "check_rounds": (1, 150),
@@ -87,6 +88,18 @@ _QUEUE_KEY = "__queue__"
 
 # 官網自架網域的 Queue-it 等候室（沒排隊時會直接導回商品頁）
 _WAITING_ROOM_HOST = "wr.pokemoncenter-online.com"
+
+# 等候室擋住雲端主機時 fetch_product 回傳的 reason 開頭（product_info.py 也用來辨識）
+BLOCKED_REASON = "官網等候室拒絕連線"
+
+# 等候室擋住 GitHub 主機的狀態 key（同樣存在各 Recipient 的 notified）：
+# __blocked__ = 開始被擋的時間，__blocked_mail__ = 寄出「監控暫停」信的時間
+_BLOCKED_KEY = "__blocked__"
+_BLOCKED_MAIL_KEY = "__blocked_mail__"
+_STATE_KEYS = (_QUEUE_KEY, _BLOCKED_KEY, _BLOCKED_MAIL_KEY)
+
+# 連續被擋這麼久才寄「監控暫停」，短暫被擋一兩次不寄信
+BLOCK_ALERT_MINUTES = 10
 
 # 同時抓取的商品頁上限，避免商品一多就瞬間打出大量請求
 _MAX_WORKERS = 12
@@ -322,7 +335,7 @@ def warn_missing_recipients():
 
 def load_state() -> dict:
     """
-    回傳 notified：{Recipient_N: {商品id 或 __queue__: ISO時間戳}}  ← 1 小時通知冷卻
+    回傳 notified：{Recipient_N: {商品id、__queue__ 或 __blocked__／__blocked_mail__: ISO時間戳}}  ← 1 小時通知冷卻
     確認售完時會移除該商品，下次補貨即視為新補貨、立即通知。
     """
     if STATE_FILE.exists():
@@ -440,7 +453,7 @@ def fetch_product(product: dict) -> dict:
             host = urlparse(resp.url).netloc
             if resp.status_code != 200 and host == _WAITING_ROOM_HOST:
                 # 官網的 Queue-it 等候室開啟時，GitHub Actions 等雲端主機的 IP 會被直接拒絕
-                last_reason = f"官網等候室拒絕連線（HTTP {resp.status_code}），雲端主機的 IP 被擋"
+                last_reason = f"{BLOCKED_REASON}（HTTP {resp.status_code}），雲端主機的 IP 被擋"
                 break
             if resp.status_code != 200 and "queue-it" not in host:
                 last_reason = f"HTTP {resp.status_code}（{resp.url}）"
@@ -464,11 +477,18 @@ def fetch_product(product: dict) -> dict:
     }
 
 
+def _is_blocked(result: dict) -> bool:
+    return result["status"] == "unknown" and result["reason"].startswith(BLOCKED_REASON)
+
+
 def fetch_all(products: list) -> list:
     """平行抓取商品頁（每個商品獨立 Session）。"""
     with ThreadPoolExecutor(max_workers=min(len(products), _MAX_WORKERS)) as executor:
         results = list(executor.map(fetch_product, products))
 
+    if results and all(_is_blocked(r) for r in results):
+        log.warning(f"無法判斷 → {len(results)} 件商品都被擋 | {results[0]['reason']}")
+        return results
     for r in results:
         if r["status"] == "in_stock":
             log.info(f"✅ 有庫存 → {r['label']} | {r['price']} | {r['limit']} | {r['button']}")
@@ -554,6 +574,48 @@ def notify_queue(alias: str, products: list) -> bool:
     return _send_email([recipient_email(alias)], subject, "\n".join(lines))
 
 
+def _duration_text(delta: timedelta) -> str:
+    minutes = max(int(delta.total_seconds() // 60), 1)
+    return f"{minutes // 60} 小時 {minutes % 60} 分" if minutes >= 60 else f"{minutes} 分鐘"
+
+
+def notify_blocked(alias: str, products: list, since: datetime) -> bool:
+    """監控暫停：官網等候室擋住 GitHub 主機，偵測器看不到庫存，請收件人自己到官網確認。"""
+    test_tag = "【測試】" if TEST_MODE else ""
+    subject = f"{test_tag}【寶可夢中心 監控暫停】官網等候室擋住 GitHub 主機"
+    now = datetime.now(TW_TZ)
+    lines = [
+        "官網開啟了 Queue-it 等候室，GitHub Actions 的主機被擋在外面（HTTP 403）。",
+        f"從 {since.astimezone(TW_TZ):%m/%d %H:%M} 起（約 {_duration_text(now - since)}）偵測器看不到任何商品的庫存，補貨時也不會寄通知。",
+        "等候室關閉後會自動恢復監控，並再寄一封恢復通知。這段期間請自己到官網確認：",
+        f"通知對象：{alias}",
+        f"偵測時間：{now.strftime('%Y-%m-%d %H:%M:%S')}（台灣時間）",
+        "",
+    ]
+    for p in products:
+        lines.append(f"▸ {p['label']}：{p['url']}")
+    return _send_email([recipient_email(alias)], subject, "\n".join(lines))
+
+
+def notify_unblocked(alias: str, since: datetime) -> bool:
+    """監控恢復：等候室不再擋 GitHub 主機，之後補貨照常通知。"""
+    test_tag = "【測試】" if TEST_MODE else ""
+    subject = f"{test_tag}【寶可夢中心 監控恢復】官網等候室已放行，恢復監控"
+    now = datetime.now(TW_TZ)
+    lines = [
+        f"從 {since.astimezone(TW_TZ):%m/%d %H:%M} 到 {now:%m/%d %H:%M}（約 {_duration_text(now - since)}）偵測器被官網等候室擋住，",
+        "現在已恢復正常偵測，之後補貨會照常通知。",
+        f"通知對象：{alias}",
+    ]
+    return _send_email([recipient_email(alias)], subject, "\n".join(lines))
+
+
+def _actions_warning(title: str, message: str):
+    """在 GitHub Actions 的 run 頁面顯示黃色警告（本機執行時不輸出）。"""
+    if os.environ.get("GITHUB_ACTIONS") == "true":
+        print(f"::warning title={title}::{message}", flush=True)
+
+
 def send_test_email() -> bool:
     """測試信：每個有設定的信箱各寄一封，列出它對應的 Recipient_N 與商品（不抓取商品頁）。"""
     labels = {p["id"]: p["label"] for p in WATCH_PRODUCTS}
@@ -582,23 +644,55 @@ def send_test_email() -> bool:
 # ─────────────────────────────────────────────
 
 
-def check_once() -> bool:
-    """回傳 False 代表本輪所有商品都無法判斷（連線失敗或被攔截）。"""
+def _track_block(alias: str, rec: dict, mine: list, round_state: str, now: datetime):
+    """
+    等候室擋住 GitHub 主機時監控看不到庫存：連續被擋 BLOCK_ALERT_MINUTES 分鐘寄一封「監控暫停」，
+    之後第一次正常偵測時寄「監控恢復」。開關與排隊提醒共用（queue_alert）。
+    """
+    if round_state == "blocked":
+        since = _parse_ts(rec.setdefault(_BLOCKED_KEY, now.isoformat()))
+        if (
+            SETTINGS["queue_alert"]
+            and _BLOCKED_MAIL_KEY not in rec
+            and now - since >= timedelta(minutes=BLOCK_ALERT_MINUTES)
+            and notify_blocked(alias, mine, since)
+        ):
+            rec[_BLOCKED_MAIL_KEY] = now.isoformat()
+    elif round_state == "ok" and _BLOCKED_KEY in rec:
+        if _BLOCKED_MAIL_KEY in rec and not notify_unblocked(alias, _parse_ts(rec[_BLOCKED_KEY])):
+            return  # 恢復通知寄送失敗，下一輪再寄
+        rec.pop(_BLOCKED_KEY)
+        rec.pop(_BLOCKED_MAIL_KEY, None)
+
+
+def check_once() -> str:
+    """
+    回傳本輪結果：
+      "ok"      ：至少一件商品判斷得出狀態（或沒有要監控的商品）
+      "blocked" ：所有商品都被官網等候室擋住（GitHub 主機的 IP 被拒）
+      "failed"  ：所有商品都無法判斷（連線失敗或其他攔截）
+    """
     routes = active_routes()
     watched_ids = {pid for ids in routes.values() for pid in ids}
     products = [p for p in WATCH_PRODUCTS if p["id"] in watched_ids]
     if not products:
         log.info("沒有分配給通知對象的商品，本輪略過")
-        return True
+        return "ok"
 
     results = fetch_all(products)
     by_id = {r["id"]: r for r in results}
+    if any(r["status"] != "unknown" for r in results):
+        round_state = "ok"
+    elif all(_is_blocked(r) for r in results):
+        round_state = "blocked"
+    else:
+        round_state = "failed"
 
     now = datetime.now(TW_TZ)
     cutoff = now - timedelta(minutes=SETTINGS["cooldown_minutes"])
     # 只保留目前設定中的對象與商品；從某人清單移除再加回 → 視為新分配，有庫存會立即通知
     notified = {
-        alias: {k: ts for k, ts in rec.items() if k == _QUEUE_KEY or k in routes[alias]}
+        alias: {k: ts for k, ts in rec.items() if k in _STATE_KEYS or k in routes[alias]}
         for alias, rec in load_state().items()
         if alias in routes
     }
@@ -639,8 +733,10 @@ def check_once() -> bool:
             if notify_queue(alias, queued):
                 rec[_QUEUE_KEY] = now.isoformat()
 
+        _track_block(alias, rec, mine, round_state, now)
+
     save_state({alias: rec for alias, rec in notified.items() if rec})
-    return any(r["status"] != "unknown" for r in results)
+    return round_state
 
 
 # ─────────────────────────────────────────────
@@ -677,12 +773,16 @@ def main():
                 if not SETTINGS["enabled"]:
                     log.info("監控已在 UI 暫停，提早結束本次 run")
                     break
-            success = check_once()
-            if success:
+            round_state = check_once()
+            if round_state == "ok":
                 consecutive_failures = 0
             else:
                 consecutive_failures += 1
                 log.warning(f"連續偵測失敗 {consecutive_failures}/3")
+                if consecutive_failures >= 3 and round_state == "blocked":
+                    log.error("官網等候室連續 3 輪擋住這台 GitHub 主機，提早結束本次 run；等候室關閉後會自動恢復")
+                    _actions_warning("官網等候室擋住 GitHub 主機", "本次 run 沒有監控到任何商品，等候室關閉後自動恢復")
+                    break
                 if consecutive_failures >= 3:
                     log.error(
                         "Pokémon Center 連續 3 輪無法判斷庫存，判定目前 GitHub runner 網路異常或遭攔截，"
