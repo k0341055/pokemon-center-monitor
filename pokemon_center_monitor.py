@@ -2,6 +2,7 @@
 pokemoncenter-online.com 補貨偵測器
 - 設定：監控商品、每位通知對象（Recipient_N）的商品清單與監控參數存於 watch_config.json，由 docs/ 的 UI 網頁編輯
 - 偵測：requests 平行抓取商品頁，解析 #availability 與「品切れ」標記，每輪約 1 秒
+- 順序：商品庫的順序就是監控優先順序（UI 可拖拉調整），每輪從最前面開始抓，通知信也照這個順序列出
 - 通知：依 Recipient_N 分別寄信，補貨立即通知、仍有庫存每隔冷卻時間（預設 1 小時）提醒一次；確認售完後重置，下次補貨再立即通知
 - 排隊：偵測到 Queue-it 排隊頁（無法判斷庫存）時另發提醒信，同樣套用冷卻時間
 - 等候室：官網等候室擋住 GitHub 主機超過 10 分鐘時寄一封「監控暫停」，恢復偵測時再寄「監控恢復」
@@ -212,6 +213,7 @@ def parse_config(data: dict) -> tuple[list, dict]:
       {"products": [{"id", "label", "title_ja", "price", ...}],
        "recipients": {"Recipient_1": [商品id, ...], ...}}
     回傳 (商品庫, {Recipient_N: 商品id清單})，略過重複商品、格式錯誤的代稱與不在商品庫的 id。
+    商品庫保留檔案中的順序（＝監控優先順序）。
     """
     products, seen = [], set()
     for p in data.get("products", []):
@@ -680,7 +682,6 @@ def check_once() -> str:
         return "ok"
 
     results = fetch_all(products)
-    by_id = {r["id"]: r for r in results}
     if any(r["status"] != "unknown" for r in results):
         round_state = "ok"
     elif all(_is_blocked(r) for r in results):
@@ -707,7 +708,8 @@ def check_once() -> str:
 
     for alias, ids in routes.items():
         rec = notified.setdefault(alias, {})
-        mine = [by_id[pid] for pid in ids]
+        wanted = set(ids)
+        mine = [r for r in results if r["id"] in wanted]  # 照商品庫順序，最想要的排最前面
 
         in_stock = [r for r in mine if r["status"] == "in_stock"]
         to_notify = [

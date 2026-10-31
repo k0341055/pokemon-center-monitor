@@ -190,13 +190,28 @@ input:disabled { opacity: .55; }
 
 .cards { list-style: none; margin: 0; padding: 0; }
 .card {
-  display: grid; grid-template-columns: 24px 84px minmax(0, 1fr) auto; gap: 12px; align-items: start;
+  display: grid; grid-template-columns: 30px 84px minmax(0, 1fr) auto; gap: 12px; align-items: start;
   padding: 14px 12px 14px 4px; border-bottom: 1px solid var(--rule);
 }
 .card:last-child { border-bottom: 0; }
 .card.flash { animation: flash 1.6s ease-out; }
 @keyframes flash { from { background: color-mix(in srgb, var(--poke) 22%, transparent); } }
 .lifting { opacity: .35; }
+/* where a dragged pool card will land */
+.card.slot-before { box-shadow: inset 0 3px 0 var(--poke); }
+.card.slot-after { box-shadow: inset 0 -3px 0 var(--poke); }
+
+/* left column of a pool card: priority number, move buttons and the drag grip */
+.order { align-self: stretch; display: flex; flex-direction: column; align-items: center; gap: 2px; }
+.order .grip { flex: 1; width: 100%; min-height: 24px; }
+.rank { font: 700 15px/1.2 var(--font-num); color: var(--muted); font-variant-numeric: tabular-nums; }
+.nudge {
+  width: 28px; height: 24px; padding: 0; border: 0; border-radius: 7px; background: transparent; color: var(--muted);
+  display: grid; place-items: center; cursor: pointer;
+}
+.nudge:hover:not(:disabled) { background: var(--soft); color: var(--ink); }
+.nudge:disabled { opacity: .25; cursor: default; }
+.nudge svg { width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width: 2.4; stroke-linecap: round; stroke-linejoin: round; }
 
 .grip {
   align-self: stretch; min-height: 44px; border-radius: 6px; cursor: grab; touch-action: none;
@@ -307,11 +322,11 @@ a.thumb:hover { border-color: var(--r1); }
 @media (max-width: 480px) {
   .summary { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .summary .stat:last-child { grid-column: 1 / -1; }
-  .card { grid-template-columns: 24px 64px minmax(0, 1fr); gap: 10px; }
+  .card { grid-template-columns: 30px 64px minmax(0, 1fr); gap: 10px; }
   .thumb { width: 64px; height: 64px; }
   .side { grid-column: 3; display: flex; gap: 2px; margin-top: -4px; }
 }
-@media (hover: none) { .grip { min-width: 30px; } }
+@media (hover: none) { .grip { min-width: 30px; } .nudge { width: 30px; height: 32px; } }
 @media (prefers-reduced-motion: reduce) { * { animation: none !important; transition: none !important; } }
 </style>
 
@@ -397,7 +412,7 @@ a.thumb:hover { border-color: var(--r1); }
   <section class="zone pool" data-zone="pool" aria-labelledby="poolTitle">
     <div class="zone-head">
       <span class="ring">P</span>
-      <div><h2 id="poolTitle">商品庫</h2><p class="sub" id="poolSub">把卡片拖到通知對象，或直接點卡片上的 R1、R2</p></div>
+      <div><h2 id="poolTitle">商品庫</h2><p class="sub" id="poolSub">由上到下就是監控順序，用 ▲▼ 或上下拖拉調整。把卡片拖到通知對象，或點卡片上的 R1、R2 來分配</p></div>
       <button class="btn sm edit-only" id="refreshAll" type="button">全部更新價格</button>
     </div>
     <ul class="cards" id="poolList"><li class="empty">讀取中…</li></ul>
@@ -420,6 +435,7 @@ a.thumb:hover { border-color: var(--r1); }
   <ul>
     <li><b>只通知負責的人：</b>補貨時只寄信給商品所在的通知對象。同一件商品可以同時分給好幾位。</li>
     <li><b>未分配＝不監控：</b>沒有分給任何人的商品會留在商品庫，但不會去官網檢查。</li>
+    <li><b>監控順序：</b>商品庫由上到下就是優先順序。每一輪從最上面開始抓（一次最多同時 12 件），補貨通知信也照這個順序列出，信件標題寫的是排最前面的那件。</li>
     <li><b>何時生效：</b>每次修改都會直接存進 repo 的 <code>watch_config.json</code>，正在執行的監控大約 1 分鐘內套用。</li>
     <li><b>新增通知對象：</b>按「＋ 新增通知對象」輸入信箱，信箱會在瀏覽器用 GitHub 的公鑰加密，直接存成 Secret <code>RECIPIENT_N</code>。存好之後讀不回來，頁面只顯示代稱；要改就用 ✉ 重新輸入。</li>
     <li><b>公開頁面：</b>任何人都能看到商品清單和代稱，但沒有 token 只能看、不能改。</li>
@@ -455,6 +471,8 @@ const ICON = {
   edit: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 20h4L19 9l-4-4L4 16v4zM13.5 6.5l4 4"/></svg>',
   close: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg>',
   mail: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 6h16v12H4zM4 7l8 6 8-6"/></svg>',
+  up: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 15l6-6 6 6"/></svg>',
+  down: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 9l6 6 6-6"/></svg>',
 };
 
 const store = {
@@ -531,6 +549,14 @@ function applyOp(cfg, op) {
     case "info": {
       const p = cfg.products.find(x => x.id === op.id);
       if (p) { Object.assign(p, op.info); delete p.info_error; }
+      break;
+    }
+    // the pool order is the monitor's priority; before = the product to land in front of, null = the end
+    case "move": {
+      const i = cfg.products.findIndex(x => x.id === op.id);
+      if (i < 0 || op.before === op.id || (op.before && !has(op.before))) break;
+      const [p] = cfg.products.splice(i, 1);
+      cfg.products.splice(op.before ? cfg.products.findIndex(x => x.id === op.before) : cfg.products.length, 0, p);
       break;
     }
   }
@@ -731,7 +757,7 @@ function stockTag(p) {
   return p.stock === "in_stock" ? `<span class="tag ok">有庫存${t}</span>` : `<span class="tag out">品切れ${t}</span>`;
 }
 
-function poolCardHTML(p, cfg, aliases, edit) {
+function poolCardHTML(p, i, cfg, aliases, edit) {
   const mine = aliases.filter(a => cfg.recipients[a].includes(p.id));
   let ja;
   if (fetching.has(p.id)) ja = `<p class="ja loading">正在抓取官網資訊…</p>`;
@@ -749,7 +775,12 @@ function poolCardHTML(p, cfg, aliases, edit) {
     `<button type="button" class="pill" data-toggle="${a}" style="--c:${colorOf(a)}" aria-pressed="${mine.includes(a)}" aria-label="通知 ${a}"${edit ? "" : " disabled"}>${short(a)}</button>`
   ).join("");
   return `<li class="card" data-drag data-pid="${esc(p.id)}" data-from="pool">
-    <span class="grip" title="拖拉到通知對象"></span>
+    <div class="order">
+      <span class="rank" title="監控順序">${i + 1}</span>
+      <button type="button" class="nudge edit-only" data-up aria-label="往前移，優先監控"${i === 0 ? " disabled" : ""}>${ICON.up}</button>
+      <span class="grip" title="上下拖拉調整順序，或拖到通知對象"></span>
+      <button type="button" class="nudge edit-only" data-down aria-label="往後移"${i === cfg.products.length - 1 ? " disabled" : ""}>${ICON.down}</button>
+    </div>
     ${thumbHTML(p, "thumb", productUrl(p.id))}
     <div class="body">
       <div class="title-row"><h3 class="zh"><a class="plink" href="${productUrl(p.id)}" target="_blank" rel="noopener" title="開啟官網商品頁">${esc(labelOf(p))}</a></h3><button type="button" class="icon sm edit-only" data-edit aria-label="修改中文名稱">${ICON.edit}</button></div>
@@ -765,9 +796,11 @@ function poolCardHTML(p, cfg, aliases, edit) {
   </li>`;
 }
 
+// listed in pool order, which is the order the monitor checks and emails them in
 function rcptHTML(a, cfg, edit) {
+  const mine = new Set(cfg.recipients[a]);
   const byId = new Map(cfg.products.map(p => [p.id, p]));
-  const ids = cfg.recipients[a].filter(id => byId.has(id));
+  const ids = cfg.products.filter(p => mine.has(p.id)).map(p => p.id);
   const chips = ids.map(id => {
     const p = byId.get(id);
     const sub = [p.price, p.stock === "in_stock" ? "有庫存" : p.stock === "sold_out" ? "品切れ" : ""].filter(Boolean).join("・");
@@ -833,7 +866,7 @@ function render() {
   $("sumRcptSub").textContent = aliases.map(a => `${short(a)} ${cfg.recipients[a].length} 件`).join("・") || "還沒有通知對象";
 
   $("poolList").innerHTML = cfg.products.length
-    ? cfg.products.map(p => poolCardHTML(p, cfg, aliases, edit)).join("")
+    ? cfg.products.map((p, i) => poolCardHTML(p, i, cfg, aliases, edit)).join("")
     : `<li class="empty">商品庫是空的，從上面貼官網連結新增第一件商品。</li>`;
   $("rcptList").innerHTML = aliases.map(a => rcptHTML(a, cfg, edit)).join("")
     || `<p class="empty zone">還沒有通知對象，按下面的「＋ 新增通知對象」。</p>`;
@@ -938,6 +971,15 @@ const findProduct = id => view().products.find(p => p.id === id);
 const opAssign = (id, a) => ({ t: "assign", id, to: a, desc: `${a} ＋ ${labelOf(findProduct(id))}` });
 const opUnassign = (id, a) => ({ t: "unassign", id, from: a, desc: `${a} － ${labelOf(findProduct(id))}` });
 
+// Move a pool product in front of `before` (null = to the end); null when its place wouldn't change.
+function opMove(id, before) {
+  const ids = view().products.map(p => p.id);
+  const rest = ids.filter(x => x !== id);
+  const to = before === null ? rest.length : rest.indexOf(before);
+  if (!ids.includes(id) || to < 0 || to === ids.indexOf(id)) return null;
+  return { t: "move", id, before, pos: to + 1, desc: `排序 ${labelOf(findProduct(id))} 移到第 ${to + 1}` };
+}
+
 function parseIds(text) {
   const ids = [];
   for (const tok of text.split(/[\s,，、]+/)) {
@@ -1017,6 +1059,17 @@ document.addEventListener("click", e => {
   if (btn.dataset.toggle) {
     const a = btn.dataset.toggle;
     queueOp(cfg.recipients[a].includes(id) ? opUnassign(id, a) : opAssign(id, a));
+  } else if ("up" in btn.dataset || "down" in btn.dataset) {
+    const dir = "up" in btn.dataset ? "up" : "down";
+    const ids = cfg.products.map(p => p.id), i = ids.indexOf(id);
+    const op = opMove(id, dir === "up" ? ids[i - 1] : ids[i + 2] ?? null);
+    if (!op) return;
+    queueOp(op);
+    // the card has moved away from the pointer: keep focus on it so ▲▼ can be pressed again
+    const moved = document.querySelector(`.card[data-pid="${CSS.escape(id)}"]`);
+    const again = moved && (moved.querySelector(`[data-${dir}]:not(:disabled)`) || moved.querySelector(".nudge:not(:disabled)"));
+    if (again) again.focus();
+    flashCard(id);
   } else if ("edit" in btn.dataset) {
     startEdit(card);
   } else if ("refresh" in btn.dataset) {
@@ -1089,11 +1142,14 @@ $("tokenClear").addEventListener("click", () => {
 /* ---------- drag and drop (pointer events, so it also works with a finger on the grip) ---------- */
 
 function dropAction(d, to) {
+  if (d.from === "pool" && to === "pool") {
+    const op = d.before !== undefined && opMove(d.pid, d.before);
+    return op ? { ok: true, move: true, hint: `移到第 ${op.pos} 位`, ops: [op] } : null;
+  }
   if (!to || to === d.from) return null;
   const cfg = view();
   const inTo = to !== "pool" && (cfg.recipients[to] || []).includes(d.pid);
   if (d.from === "pool") {
-    if (to === "pool") return null;
     return inTo ? { ok: false, hint: `已在 ${to}` } : { ok: true, hint: `加入 ${to}`, ops: [opAssign(d.pid, to)] };
   }
   if (to === "pool") return { ok: true, hint: `從 ${d.from} 移除`, ops: [opUnassign(d.pid, d.from)] };
@@ -1154,12 +1210,32 @@ function moveDrag() {
   d.ghost.style.transform = `translate(${d.x + 14}px, ${d.y + 14}px) rotate(-2deg)`;
   const under = document.elementFromPoint(d.x, d.y);
   const zone = under && under.closest(".zone[data-zone]");
-  const action = zone ? dropAction(d, zone.dataset.zone) : null;
-  document.querySelectorAll(".zone.over").forEach(z => { if (z !== zone) z.classList.remove("over"); });
-  if (zone) zone.classList.toggle("over", !!(action && action.ok));
   d.zone = zone ? zone.dataset.zone : null;
+  d.before = d.from === "pool" && d.zone === "pool" ? slotBefore(d.y) : undefined;
+  const action = zone ? dropAction(d, d.zone) : null;
+  document.querySelectorAll(".zone.over").forEach(z => { if (z !== zone) z.classList.remove("over"); });
+  if (zone) zone.classList.toggle("over", !!(action && action.ok && !action.move));
+  markSlot(action && action.move ? d.before : undefined);
   d.ghost.querySelector("small").textContent = action ? action.hint
-    : d.from === "pool" ? "拖到通知對象底下" : "拖回商品庫＝移除";
+    : d.from === "pool" ? "上下拖拉排序，或拖到通知對象" : "拖回商品庫＝移除";
+}
+
+// The pool card a dragged card would land in front of: the first one whose middle is below the pointer (null = the end).
+function slotBefore(y) {
+  for (const c of $("poolList").querySelectorAll(".card")) {
+    const r = c.getBoundingClientRect();
+    if (y < r.top + r.height / 2) return c.dataset.pid;
+  }
+  return null;
+}
+
+// Draw the drop line above that card, or under the last card; undefined clears it.
+function markSlot(before) {
+  document.querySelectorAll(".slot-before, .slot-after").forEach(c => c.classList.remove("slot-before", "slot-after"));
+  if (before === undefined) return;
+  const cards = $("poolList").querySelectorAll(".card");
+  const el = before === null ? cards[cards.length - 1] : document.querySelector(`.card[data-pid="${CSS.escape(before)}"]`);
+  if (el) el.classList.add(before === null ? "slot-after" : "slot-before");
 }
 
 // Scroll the page (or the sticky recipients column) while a drag hovers near an edge.
@@ -1187,6 +1263,7 @@ function endDrag(commit) {
   d.item.classList.remove("lifting");
   document.body.classList.remove("dragging");
   document.querySelectorAll(".zone.over").forEach(z => z.classList.remove("over"));
+  markSlot();
   suppressUntil = Date.now() + 350;
   const action = commit && dropAction(d, d.zone);
   if (action && action.ok) { queueOp(...action.ops); toast(action.hint); }
