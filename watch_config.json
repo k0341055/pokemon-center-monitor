@@ -9,17 +9,6 @@
   },
   "products": [
     {
-      "id": "4521329454221",
-      "label": "🎄 聖誕樹皮卡丘娃娃",
-      "info_updated": "2026-10-30T13:39:01+08:00",
-      "title_ja": "もちふわぬいぐるみ クリスマスじゅんびチュウ！ ツリーごっこピカチュウ",
-      "price": "¥4,400",
-      "limit": "お一人様 1点限り",
-      "image": "https://www.pokemoncenter-online.com/a/img/item/4521329454221/M/5eda78e25508d0eb4574fe1eaf5cb101d8b530c8b669645eb0c18ed67704f1b1.jpg",
-      "stock": "sold_out",
-      "info_error": "官網等候室擋住 GitHub 伺服器：在官網商品頁點「匯入監控」書籤，或等候室關閉後再按 ↻"
-    },
-    {
       "id": "4521329454252",
       "label": "🧸 皮卡丘與多邊獸Ⅱ玩具吊飾",
       "info_updated": "2026-10-30T13:39:01+08:00",
@@ -27,6 +16,17 @@
       "price": "¥2,200",
       "limit": "お一人様 1点限り",
       "image": "https://www.pokemoncenter-online.com/a/img/item/4521329454252/M/81c80762e6e3ed879846ccb6e1d4c5a4f45a9f665979961171795af82dcfe3e7.jpg",
+      "stock": "sold_out",
+      "info_error": "官網等候室擋住 GitHub 伺服器：在官網商品頁點「匯入監控」書籤，或等候室關閉後再按 ↻"
+    },
+    {
+      "id": "4521329454221",
+      "label": "🎄 聖誕樹皮卡丘娃娃",
+      "info_updated": "2026-10-30T13:39:01+08:00",
+      "title_ja": "もちふわぬいぐるみ クリスマスじゅんびチュウ！ ツリーごっこピカチュウ",
+      "price": "¥4,400",
+      "limit": "お一人様 1点限り",
+      "image": "https://www.pokemoncenter-online.com/a/img/item/4521329454221/M/5eda78e25508d0eb4574fe1eaf5cb101d8b530c8b669645eb0c18ed67704f1b1.jpg",
       "stock": "sold_out",
       "info_error": "官網等候室擋住 GitHub 伺服器：在官網商品頁點「匯入監控」書籤，或等候室關閉後再按 ↻"
     },
