@@ -20,17 +20,6 @@
       "info_error": "官網等候室擋住 GitHub 伺服器：在官網商品頁點「匯入監控」書籤，或等候室關閉後再按 ↻"
     },
     {
-      "id": "4521329454238",
-      "label": "🍪 偷吃餅乾皮卡丘吊飾",
-      "info_updated": "2026-10-30T13:39:01+08:00",
-      "title_ja": "マスコット クリスマスじゅんびチュウ！ ピカチュウ つまみぐい",
-      "price": "¥2,200",
-      "limit": "お一人様 1点限り",
-      "image": "https://www.pokemoncenter-online.com/a/img/item/4521329454238/M/401ef4f2809558e6e9da2fc81099f1adfbe6abf302891c8672bcd0bf26750e7f.jpg",
-      "stock": "sold_out",
-      "info_error": "官網等候室擋住 GitHub 伺服器：在官網商品頁點「匯入監控」書籤，或等候室關閉後再按 ↻"
-    },
-    {
       "id": "4521329454252",
       "label": "🧸 皮卡丘與多邊獸Ⅱ玩具吊飾",
       "info_updated": "2026-10-30T13:39:01+08:00",
@@ -38,6 +27,17 @@
       "price": "¥2,200",
       "limit": "お一人様 1点限り",
       "image": "https://www.pokemoncenter-online.com/a/img/item/4521329454252/M/81c80762e6e3ed879846ccb6e1d4c5a4f45a9f665979961171795af82dcfe3e7.jpg",
+      "stock": "sold_out",
+      "info_error": "官網等候室擋住 GitHub 伺服器：在官網商品頁點「匯入監控」書籤，或等候室關閉後再按 ↻"
+    },
+    {
+      "id": "4521329454238",
+      "label": "🍪 偷吃餅乾皮卡丘吊飾",
+      "info_updated": "2026-10-30T13:39:01+08:00",
+      "title_ja": "マスコット クリスマスじゅんびチュウ！ ピカチュウ つまみぐい",
+      "price": "¥2,200",
+      "limit": "お一人様 1点限り",
+      "image": "https://www.pokemoncenter-online.com/a/img/item/4521329454238/M/401ef4f2809558e6e9da2fc81099f1adfbe6abf302891c8672bcd0bf26750e7f.jpg",
       "stock": "sold_out",
       "info_error": "官網等候室擋住 GitHub 伺服器：在官網商品頁點「匯入監控」書籤，或等候室關閉後再按 ↻"
     },
