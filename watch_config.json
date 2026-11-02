@@ -169,6 +169,10 @@
       "stock": "in_stock"
     },
     {
+      "id": "4521329454290",
+      "label": "🎁 聖誕準備啾！蓬鬆玩偶 BOX (單盒)"
+    },
+    {
       "id": "4521329397566",
       "label": "😴 Pokémon Sleep 晚安皮卡丘娃娃",
       "info_updated": "2026-11-02T22:42:40+08:00",
@@ -177,10 +181,6 @@
       "limit": "お一人様 10点限り",
       "image": "https://www.pokemoncenter-online.com/a/img/item/4521329397566/M/d4e563717d493bce00f7849cbc416f33f5757d281bfdac37668924bde4a99f19.jpg",
       "stock": "in_stock"
-    },
-    {
-      "id": "4521329454290",
-      "label": "🎁 聖誕準備啾！蓬鬆玩偶 BOX (單盒)"
     }
   ],
   "recipients": {
