@@ -39,6 +39,16 @@
       "stock": "sold_out"
     },
     {
+      "id": "4905330033246",
+      "label": "站立咚咚鼠(S)",
+      "info_updated": "2026-11-04T14:02:31+08:00",
+      "title_ja": "ぬいぐるみ(S)　デデンネ",
+      "price": "¥1,980",
+      "limit": "",
+      "image": "https://www.pokemoncenter-online.com/a/img/item/4905330033246/M/48356d7e2646a9522df9f0660375a01363aea0110767922008f19f4cc988972f.jpg",
+      "stock": "sold_out"
+    },
+    {
       "id": "4521329454290",
       "label": "🎁 聖誕準備啾！蓬鬆玩偶 BOX (單盒)",
       "info_updated": "2026-11-04T12:38:20+08:00",
@@ -187,16 +197,6 @@
       "limit": "お一人様 10点限り",
       "image": "https://www.pokemoncenter-online.com/a/img/item/4521329397566/M/d4e563717d493bce00f7849cbc416f33f5757d281bfdac37668924bde4a99f19.jpg",
       "stock": "in_stock"
-    },
-    {
-      "id": "4905330033246",
-      "label": "站立咚咚鼠(S)",
-      "info_updated": "2026-11-04T14:02:31+08:00",
-      "title_ja": "ぬいぐるみ(S)　デデンネ",
-      "price": "¥1,980",
-      "limit": "",
-      "image": "https://www.pokemoncenter-online.com/a/img/item/4905330033246/M/48356d7e2646a9522df9f0660375a01363aea0110767922008f19f4cc988972f.jpg",
-      "stock": "sold_out"
     }
   ],
   "recipients": {
